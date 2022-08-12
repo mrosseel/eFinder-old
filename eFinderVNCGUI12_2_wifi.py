@@ -32,11 +32,10 @@ import socket
 import re
 from skyfield.api import load, Star, wgs84
 from pathlib import Path
-import csv
 import fitsio
 from fitsio import FITS,FITSHDR
   
-version = '11_9_9_wifi'
+version = '12_1_wifi'
 os.system('pkill -9 -f eFinder.py') # comment out if this is the autoboot program
 
 HOST = '10.0.0.1'
@@ -69,6 +68,7 @@ radec = 'no_radec'
 offset_flag = False
 f_g = 'red'
 b_g = 'black'
+solved_radec = 0,0
         
 def sidereal():
     global LST
@@ -87,6 +87,51 @@ def sidereal():
     lbl_LST.destroy()
     lbl_date.destroy()
     lbl_LST.after(10, sidereal)
+
+def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
+    Rad = math.pi/180
+    ra =ra * 15 # need to work in degrees now
+    LSTd = LST * 15
+    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360   
+    x = math.cos(LHA * Rad) * math.cos(dec * Rad)
+    y = math.sin(LHA * Rad) * math.cos(dec * Rad)
+    z = math.sin(dec * Rad)    
+    xhor = x * math.cos((90 - Lat) * Rad) - z * math.sin((90 - Lat) * Rad)
+    yhor = y
+    zhor = x * math.sin((90 - Lat) * Rad) + z * math.cos((90 - Lat) * Rad)
+    az = math.atan2(yhor, xhor) * (180/math.pi) + 180
+    alt = math.asin(zhor) * (180/math.pi)
+    return(alt,az)
+
+def dd2dms(dd): # converts Dec or Alt from signed decimal to D:M:S
+    is_positive = dd >= 0
+    dd = abs(dd)
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    sign = '+' if is_positive else '-'  
+    dms = '%s%02d:%02d:%02d' % (sign,degrees,minutes,seconds)
+    return(dms)
+
+def dd2aligndms(dd): # converts Dec or Alt from signed decimal to D*M:S with '*' as delimter (LX200 protocol)
+    is_positive = dd >= 0
+    dd = abs(dd)
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    sign = '+' if is_positive else '-'  
+    dms = '%s%02d*%02d:%02d' % (sign,degrees,minutes,seconds)
+    return(dms)
+
+def ddd2dms(dd): # converts Az from decimal to D:M:S
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    dms = '%03d:%02d:%02d' % (degrees,minutes,seconds)
+    return(dms)
+
+def hh2dms(dd): # converts RA from decimal to D:M:S
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    dms = '%02d:%02d:%02d' % (degrees,minutes,seconds)
+    return(dms)
 
 def rd2xy(ra,dec): # returns the image x,y pixel corrsponding to a J2000 RA & Dec
     result = subprocess.run(["wcs-rd2xy","-w",home_path+"/Solver/images/capture.wcs","-r",str(ra),"-d",str(dec)],capture_output=True, text=True)
@@ -110,7 +155,7 @@ def pixel2dxdy(pix_x,pix_y): # converts an image pixel x,y to a delta x,y in deg
     dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris 
     return(deg_x,deg_y,dxstr,dystr)
 
-def dxdy2pixel(dx,dy):
+def dxdy2pixel(dx,dy): # reverse of above
     pix_scale = 3.74715 if finder.get() == '1' else 4*3.74715
     pix_x = dx*3600/pix_scale + 640
     pix_y = 480 - dy*3600/pix_scale
@@ -118,8 +163,8 @@ def dxdy2pixel(dx,dy):
     dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris 
     return(pix_x,pix_y,dxstr,dystr)
     
-def readNexus(): # creates, displays & returns a 'Skyfield star object' at the Nexus DSC reported RA & Dec
-    global nexus_Pos, scopeAlt,radec
+def readNexus():
+    global scopeAlt,radec, nexus_altaz, nexus_radec
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST,PORT))
         s.send(b':GR#')
@@ -129,15 +174,16 @@ def readNexus(): # creates, displays & returns a 'Skyfield star object' at the N
         time.sleep(0.1)
         dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
     radec = ra[0]+ra[1]+dec[0]+dec[1]
-    nexus = Star(ra_hours=(float(ra[0]),float(ra[1]),float(ra[2])),dec_degrees=(float(dec[0]),float(dec[1]),float(dec[2])),epoch=ts.now())
-    nexus_Pos=location.at(ts.now()).observe(nexus)
-    ra, dec, d = nexus_Pos.radec()
-    alt,az,d = nexus_Pos.apparent().altaz()
-    scopeAlt = alt.radians
-    tk.Label(window,width=10,text=ra.hstr(format='{1:02}:{2:02}:{3:02}'),anchor="e",bg=b_g,fg=f_g).place(x=225,y=804)
-    tk.Label(window,width=10,anchor="e",text=dec.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}'),bg=b_g,fg=f_g).place(x=225,y=826)
-    tk.Label(window,width=10,anchor="e",text=az.dstr(format='{1:03}:{2:02}:{3:02}'),bg=b_g,fg=f_g).place(x=225,y=870)
-    tk.Label(window,width=10,anchor="e",text=alt.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}'),bg=b_g,fg=f_g).place(x=225,y=892)
+    nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600)
+    nexus_altaz = convAltaz(*(nexus_radec))
+    #nexus = Star(ra_hours=(float(ra[0]),float(ra[1]),float(ra[2])),dec_degrees=(float(dec[0]),float(dec[1]),float(dec[2])),epoch=ts.now())
+    #nexus_Pos=location.at(ts.now()).observe(nexus)
+    #ra, dec, d = nexus_Pos.radec()
+    scopeAlt = nexus_altaz[0]*math.pi/180
+    tk.Label(window,width=10,anchor="e",text=hh2dms(nexus_radec[0]),bg=b_g,fg=f_g).place(x=225,y=804)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_radec[1]),bg=b_g,fg=f_g).place(x=225,y=826)
+    tk.Label(window,width=10,anchor="e",text=ddd2dms(nexus_altaz[0]),bg=b_g,fg=f_g).place(x=225,y=870)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_altaz[1]),bg=b_g,fg=f_g).place(x=225,y=892)
 
 def zwoInit():
     global camera, camType
@@ -147,8 +193,6 @@ def zwoInit():
         camType = "not found"
     else:
         camType = "ZWO"
-    #cameras_found = asi.list_cameras()
-    #camera_id = 0
     camera = asi.Camera(0)
     camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, camera.get_controls()['BandWidth']['MinValue'])
     camera.disable_dark_subtract()
@@ -179,7 +223,7 @@ def capture():
     image_show()
     
 def solveImage():
-    global solved, solvedPos, scopeAlt, star_name, star_name_offset
+    global solved, scopeAlt, star_name, star_name_offset,solved_radec,solved_altaz
     scale = 3.75 if finder.get() == '1' else 4*3.75
     box_write('"/pixel: '+str(scale))
     scale_low = str(scale * 0.9)
@@ -238,15 +282,17 @@ def solveImage():
         else:
             box_write(' no named star')
             print ('No Named Star found')
-            star_name = "No named star"
+            star_name = "Unknown"
     solvedPos = applyOffset()
     ra,dec,d = solvedPos.radec(ts.now())
-    alt,az,d = solvedPos.apparent().altaz()
-    scopeAlt = alt.radians
-    tk.Label(window,width=10,text=ra.hstr(format='{1:02}:{2:02}:{3:02}'),anchor="e",bg=b_g,fg=f_g).place(x=315,y=804)
-    tk.Label(window,width=10,anchor="e",text=dec.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}'),bg=b_g,fg=f_g).place(x=315,y=826)
-    tk.Label(window,width=10,anchor="e",text=az.dstr(format='{1:03}:{2:02}:{3:02}'),bg=b_g,fg=f_g).place(x=315,y=870)
-    tk.Label(window,width=10,anchor="e",text=alt.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}'),bg=b_g,fg=f_g).place(x=315,y=892)
+    solved_radec = ra.hours,dec.degrees
+    #alt,az,d = solvedPos.apparent().altaz()
+    solved_altaz = convAltaz(*(solved_radec))
+    scopeAlt = solved_altaz[0]*math.pi/180
+    tk.Label(window,width=10,text=hh2dms(solved_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=315,y=804)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_radec[1]),bg=b_g,fg=f_g).place(x=315,y=826)
+    tk.Label(window,width=10,anchor="e",text=ddd2dms(solved_altaz[0]),bg=b_g,fg=f_g).place(x=315,y=870)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_altaz[1]),bg=b_g,fg=f_g).place(x=315,y=892)
     solved = True
     box_write('solved')
     deltaCalc()
@@ -343,7 +389,7 @@ def annotate_image():
         box_write('solve failure')
         return
 
-def zoom_at(img, x, y, zoom):
+def zoom_at(img, x, y, zoom): # used to crop and shift the image (zoom and offset)
     w, h = img.size
     dh=(h-(h/zoom))/2
     dw=(w-(w/zoom))/2
@@ -352,16 +398,14 @@ def zoom_at(img, x, y, zoom):
     
 def deltaCalc():
     global deltaAz,deltaAlt
-    alt_solved,az_solved,d = solvedPos.apparent().altaz()
-    alt_nexus,az_nexus,d = nexus_Pos.apparent().altaz()
-    deltaAz = az_solved.degrees - az_nexus.degrees 
+    deltaAz = solved_altaz[1] - nexus_altaz[1]
     if abs(deltaAz)>180:
         if deltaAz<0:
             deltaAz = deltaAz + 360
         else:
             deltaAz = deltaAz - 360
-    deltaAz = 60*(deltaAz*math.cos(alt_solved.radians)) #actually this is delta'x' in arcminutes
-    deltaAlt = alt_solved.degrees - alt_nexus.degrees 
+    deltaAz = 60*(deltaAz*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
+    deltaAlt = solved_altaz[0] - nexus_altaz[0] 
     deltaAlt = 60*(deltaAlt)  # in arcminutes
     deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
     deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
@@ -388,6 +432,7 @@ def moveScope(dAz,dAlt):
         time.sleep(0.2)
         box_write('moving scope in Alt')
         print('moving scope in Alt')
+        s.send(b'#:RG#')
         if dAlt > 0: #if +ve move scope down
             s.send(b'#:Ms#')
             time.sleep(altPulse)
@@ -402,20 +447,20 @@ def moveScope(dAz,dAlt):
 
 def align(): # sends the Nexus the solved RA & Dec (JNow) as an align or sync point. LX200 protocol.
     global align_count
-    readNexus()
+    #readNexus()
     capture()
     solveImage()
+    readNexus()
     if solved==False:
         return 
-    ra,dec,d = solvedPos.radec()
-    align_ra=ra.hstr(format=':Sr{1:02}:{2:02}:{3:02}#')
-    align_dec=dec.dstr(format=':Sd{0:+>1}{1:02}*{2:02}:{3:02}#')
+    align_ra = ':Sr'+dd2dms((solved_radec)[0])+'#'
+    align_dec = ':Sd'+dd2aligndms((solved_radec)[1])+'#'
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST,PORT))
             s.send(bytes(align_ra.encode('ascii')))
             time.sleep(0.1)
-            print(align_ra)
+            print('sent align RA command:',align_ra)
             box_write('sent '+align_ra)
             if str(s.recv(1),'ascii') == '0':
                 box_write('invalid position')
@@ -423,7 +468,7 @@ def align(): # sends the Nexus the solved RA & Dec (JNow) as an align or sync po
                 return
             s.send(bytes(align_dec.encode('ascii')))
             time.sleep(0.1)
-            print(align_dec)
+            print('sent align Dec command:',align_dec)
             box_write('sent '+align_dec)
             if str(s.recv(1),'ascii') == '0':
                 box_write('invalid position')
@@ -462,14 +507,14 @@ def measure_offset():
         offset_flag=False
         return
     scope_x,scope_y = star_name_offset
-    if star_name == "No named star": # display warning in red.
-        tk.Label(window,width=12,text=star_name,anchor='w',bg=f_g,fg=b_g).place(x=960,y=825)
+    if star_name == "Unknown": # display warning in red.
+        tk.Label(window,width=8,text=star_name,anchor='w',bg=f_g,fg=b_g).place(x=115,y=470)
     else:
-        tk.Label(window,width=12,text=star_name,anchor='w',bg=b_g,fg=f_g).place(x=960,y=825)
+        tk.Label(window,width=8,text=star_name,anchor='w',bg=b_g,fg=f_g).place(x=115,y=470)
     box_write(star_name)
     d_x,d_y,dxstr_new,dystr_new = pixel2dxdy(scope_x,scope_y)
     offset_new = d_x,d_y
-    tk.Label(window,text=dxstr_new+','+dystr_new+'          ',bg=b_g,fg=f_g).place(x=960,y=805)
+    tk.Label(window,text=dxstr_new+','+dystr_new+'          ',width=9,anchor='w',bg=b_g,fg=f_g).place(x=110,y=450)
     offset_flag=False
     
 def use_new():
@@ -487,43 +532,75 @@ def save_offset():
 
 def get_offset():
     x_offset_saved,y_offset_saved,dxstr_saved,dystr_saved = dxdy2pixel(float(param['d_x']),float(param['d_y']))
-    tk.Label(window,text=dxstr_saved+','+dystr_saved+'          ',bg=b_g,fg=f_g).place(x=960,y=900)
+    tk.Label(window,text=dxstr_saved+','+dystr_saved+'          ',width=9,anchor='w',bg=b_g,fg=f_g).place(x=110,y=520)
 
 def use_loaded_offset():
     global offset
     x_offset_saved,y_offset_saved,dxstr,dystr = dxdy2pixel(float(param['d_x']),float(param['d_y']))
     offset = float(param['d_x']),float(param['d_y'])
-    tk.Label(window,text=dxstr+','+dystr,bg=b_g,fg=f_g,width=8).place(x=870,y=775)
+    tk.Label(window,text=dxstr+','+dystr,bg=b_g,fg=f_g,width=8).place(x=60,y=400)
 
 def reset_offset():
     global offset
     offset = offset_reset
     box_write('offset reset')
-    tk.Label(window,text='0,0',bg=b_g,fg='red',width=8).place(x=870,y=775)
+    tk.Label(window,text='0,0',bg=b_g,fg='red',width=8).place(x=60,y=400)
 
 def image():
     readNexus()
     capture()
 
 def solve():
+    readNexus()
     solveImage()
     image_show()
-    
+
+def readTarget():
+    global target_radec,target_altaz
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # read original goto target RA & Dec
+        s.connect((HOST,PORT))
+        s.send(b':Gr#')
+        time.sleep(0.1)
+        target_ra = s.recv(16).decode('ascii')
+        if target_ra[0:2] == '00' and target_ra[3:5] == '00': # not a valid goto target set yet.
+            box_write('no GoTo target')
+            return
+        s.send(b':Gd#')
+        time.sleep(0.1)
+        target_dec = s.recv(16).decode('ascii')
+        ra = target_ra.strip('#').split(':')
+
+        s.send(b':GD#')
+        time.sleep(0.1)
+        dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
+        target_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600)
+        target_altaz = convAltaz(*(target_radec))
+        print ('goto RA & Dec',target_ra,target_dec)
+        return(target_ra,target_dec)
+
+
+
 def goto():
-    align()
+    ra,dec = readTarget()
+    align() # local sync scope to true RA & Dec
     if solved == False:
         box_write('solve failed')
         return
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    time.sleep(0.2)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # send back the original goto target and command a goto
         s.connect((HOST,PORT))
+        s.send(bytes((':Sr'+ra).encode('ascii')))
+        s.send(bytes((':Sd'+dec).encode('ascii')))
         s.send(b':MS#')
         time.sleep(0.1)
         box_write("moving scope")
-        if str(s.recv(1),'ascii') != '0':
-            print('GoTo problem')
-            box_write('goto problem')
+        # print(str(s.recv(1),'ascii'))
+        # print('GoTo problem')
+        # box_write('goto problem')
 
 def move():
+    solveImage()
+    image_show()
     if solved == False:
         box_write('no solution yet')
         return
@@ -538,27 +615,24 @@ def move():
         s.send(b':Gd#')
         time.sleep(0.1)
         goto_dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
-        print ('goto RA & Dec',goto_ra,goto_dec)
-    goto_target = Star(ra_hours=(float(goto_ra[0]),float(goto_ra[1]),float(goto_ra[2])) \
-                       ,dec_degrees=(float(goto_dec[0]),float(goto_dec[1]),float(goto_dec[2])),epoch=ts.now())
-    goto_Pos=location.at(ts.now()).observe(goto_target)
-    ra,dec,d = goto_Pos.radec() # in J2000
-    target_x,target_y = rd2xy(ra._degrees,dec.degrees) # position of goto target in the image
-    delta_x = float(target_x) - float(scope_x) # distance to target in pixels, +ve means move scope right
-    delta_y = float(target_y) - float(scope_y) # +ve means move scope up.
-    # THIS ASSUMES THE CAMERA IS ALIGNED WITH SCOPE AXES. If not will will have to compute using AltAz Skyfield method.
-    pix_scale = 3.74715 if finder.get() == '1' else 4*3.74715
-    d_x = (delta_x)*pix_scale/60 # in arc minutes
-    d_y = (delta_y)*pix_scale/60
-    delta_Alt = d_y
-    delta_Az = d_x * math.cos(scopeAlt)
+    print ('goto RA & Dec',goto_ra,goto_dec)
+    ra = float(goto_ra[0])+float(goto_ra[1])/60+float(goto_ra[2])/3600
+    dec = float(goto_dec[0]) + float(goto_dec[1])/60 + float(goto_dec[2])/3600
+    print('goto radec',ra,dec)
+    alt_g,az_g = convAltaz(ra,dec)
+    print('target Az Alt',az_g,alt_g)
+    #ra,dec,d = solvedPos.radec(epoch=ts.now())
+    #az_s,alt_s = convAltaz(ra.hours,dec.degrees)
+    #print('solved Az Alt',az_s,alt_s)
+    delta_Az = (az_g - solved_altaz[1])*60 # +ve move scope right
+    delta_Alt = (alt_g - solved_altaz[0])*60 # +ve move scope up
     delta_Az_str = "{: .2f}".format(delta_Az)
     delta_Alt_str = "{: .2f}".format(delta_Alt)
     print("deltaAz, deltaAlt:",delta_Az_str,delta_Alt_str)    
     box_write("deltaAz : "+delta_Az_str)
     box_write("deltaAlt: "+delta_Alt_str)
     moveScope(delta_Az,delta_Alt)
-    # could insert a new capture and solve (its automatic on the LCD version)
+    # could insert a new capture and solve?
 
 def on_closing():
     save_param()
@@ -671,10 +745,10 @@ sidereal()
 tk.Label(window,text='Date',fg=f_g,bg=b_g).place(x=15,y=0)
 tk.Label(window,text='UTC',bg=b_g,fg=f_g).place(x=15,y=22)
 tk.Label(window,text='LST',bg=b_g,fg=f_g).place(x=15,y=44)
-tk.Label(window,text='Long:',bg=b_g,fg=f_g).place(x=15,y=66)
-tk.Label(window,width=6,anchor="e",text=str(Long)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=66)
-tk.Label(window,text='Lat:',bg=b_g,fg=f_g).place(x=15,y=88)
-tk.Label(window,width=6,anchor="e",text=str(Lat)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=88)
+tk.Label(window,text='Loc:',bg=b_g,fg=f_g).place(x=15,y=66)
+tk.Label(window,width=18,anchor="w",text=str(Long)+'\u00b0  ' + str(Lat)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=66)
+#tk.Label(window,text='Lat:',bg=b_g,fg=f_g).place(x=15,y=88)
+#tk.Label(window,width=6,anchor="e",text=str(Lat)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=88)
 img = Image.open(home_path+'/Solver/M16.jpeg')
 img = img.resize((1014,760))
 img = ImageTk.PhotoImage(img)
@@ -684,7 +758,7 @@ panel.place(x=200,y=5,width=1014,height=760)
 exposure = StringVar()
 exposure.set(param['Exposure'])
 exp_frame = Frame(window,bg='black')
-exp_frame.place(x=0,y=127)
+exp_frame.place(x=0,y=100)
 tk.Label(exp_frame,text='Exposure',bg=b_g,fg=f_g).pack(padx=1,pady=1)
 for i in range(len(expRange)):
     tk.Radiobutton(exp_frame,text=str(expRange[i]),bg=b_g,fg=f_g,width=7,activebackground='red',anchor='w', \
@@ -693,7 +767,7 @@ for i in range(len(expRange)):
 gain = StringVar()
 gain.set(param['Gain'])
 gain_frame = Frame(window,bg='black')
-gain_frame.place(x=80,y=127)
+gain_frame.place(x=80,y=100)
 tk.Label(gain_frame,text='Gain',bg=b_g,fg=f_g).pack(padx=1,pady=1)
 for i in range(len(gainRange)):
     tk.Radiobutton(gain_frame,text=str(gainRange[i]),bg=b_g,fg=f_g,width=7,activebackground='red',anchor='w', \
@@ -702,7 +776,7 @@ for i in range(len(gainRange)):
 finder = StringVar()
 finder.set(param['200mm finder'])
 options_frame = Frame(window,bg='black')
-options_frame.place(x=20,y=340)
+options_frame.place(x=20,y=270)
 tk.Checkbutton(options_frame,text='200mm finder',width=13,anchor="w",highlightbackground='black',activebackground='red', fg=f_g,bg=b_g,variable=finder).pack(padx=1,pady=1)
 grat = StringVar()
 grat.set("0")
@@ -715,11 +789,14 @@ test.set(param['Test mode'])
 tk.Checkbutton(options_frame,text='M13 image',width=13,anchor="w",highlightbackground='black',activebackground='red',bg=b_g,fg=f_g, variable=test).pack(padx=1,pady=1)
 
 
-tk.Label(window,text='ccd is '+camType,bg=b_g,fg=f_g).place(x=20,y=444)
-tk.Label(window,text ='Nexus '+NexStr,bg=b_g,fg=f_g).place(x=20,y=466)
+#tk.Label(window,text='ccd is '+camType,bg=b_g,fg=f_g).place(x=20,y=444)
+#tk.Label(window,text ='Nexus '+NexStr,bg=b_g,fg=f_g).place(x=20,y=466)
+
+box_write('ccd is '+camType)
+box_write('Nexus '+NexStr)
 
 but_frame = Frame(window,bg='black')
-but_frame.place(x=25,y=610)
+but_frame.place(x=25,y=650)
 tk.Button(but_frame, text='Align',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,height=2,width=10,command=align).pack(padx=1,pady=40)
 tk.Button(but_frame, text='Capture',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=2,width=10,command=image).pack(padx=1,pady=10)
 tk.Button(but_frame, text='Solve',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=solve).pack(padx=1,pady=10)
@@ -727,18 +804,19 @@ tk.Button(but_frame, text='Finish GoTo',activebackground='red',highlightbackgrou
 tk.Button(but_frame, text='Move to Finish',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=move).pack(padx=1,pady=10)
 
 off_frame = Frame(window,bg='black')
-off_frame.place(x=840,y=800)
-tk.Button(off_frame, text='Offset Measure',activebackground='red',highlightbackground='red',bd=0,height=1,width=10,bg=b_g,fg=f_g,command=measure_offset).pack(padx=1,pady=1)
-tk.Button(off_frame, text='Use New',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,height=1,width=10,command=use_new).pack(padx=1,pady=1)
-tk.Button(off_frame, text='Save Offset',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=10,command=save_offset).pack(padx=1,pady=1)
-tk.Button(off_frame, text='Use Saved',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=10,command=use_loaded_offset).pack(padx=1,pady=1)
-tk.Button(off_frame, text='Reset Offset',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=10,command=reset_offset).pack(padx=1,pady=1)
+off_frame.place(x=10,y=420)
+tk.Button(off_frame, text='Measure',activebackground='red',highlightbackground='red',bd=0,height=1,width=8,bg=b_g,fg=f_g,command=measure_offset).pack(padx=1,pady=1)
+tk.Button(off_frame, text='Use New',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,height=1,width=8,command=use_new).pack(padx=1,pady=1)
+tk.Button(off_frame, text='Save Offset',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=8,command=save_offset).pack(padx=1,pady=1)
+tk.Button(off_frame, text='Use Saved',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=8,command=use_loaded_offset).pack(padx=1,pady=1)
+tk.Button(off_frame, text='Reset Offset',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=8,command=reset_offset).pack(padx=1,pady=1)
 d_x,d_y,dxstr,dystr = pixel2dxdy(offset[0],offset[1])
-tk.Label(window,text='0,0',bg=b_g,fg=f_g,width=6).place(x=870,y=775)
-tk.Label(window,text='dx,dy arc min',bg=b_g,fg=f_g).place(x=960,y=775)
-tk.Label(window,text='not measured',bg=b_g,fg=f_g).place(x=960,y=805)
-tk.Label(window,text='Offset:',bg=b_g,fg=f_g).place(x=820,y=775)
 
+
+#tk.Label(window,text='not measured',bg=b_g,fg=f_g).place(x=110,y=400)
+tk.Label(window,text='Offset:',bg=b_g,fg=f_g).place(x=10,y=400)
+tk.Label(window,text='0,0',bg=b_g,fg=f_g,width=6).place(x=60,y=400)
+#tk.Label(window,text='dx,dy arc min',bg=b_g,fg=f_g).place(x=80,y=400)
 nex_frame = Frame(window,bg='black')
 nex_frame.place(x=250,y=766)
 tk.Button(nex_frame, text='Nexus',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,command=readNexus).pack(padx=1,pady=1)

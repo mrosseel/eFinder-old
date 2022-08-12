@@ -29,6 +29,8 @@ import numpy as np
 import threading
 import select
 from pathlib import Path
+import fitsio
+from fitsio import FITS,FITSHDR
 
 ser = serial.Serial("/dev/ttyS0",baudrate=9600)
 
@@ -143,7 +145,7 @@ def imgDisplay(): #displays the captured image on the Pi desktop.
     im.show()
 
 def solveImage(): 
-    global offset_flag, solve, solvedPos, elapsed_time, star_name
+    global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset
     scale = 4*3.75 if param['200mm finder'] == '0' else 3.75
     scale_low = str(scale * 0.9)
     scale_high = str(scale * 1.1)
@@ -184,6 +186,8 @@ def solveImage():
         solve = False
         return
     if (offset_flag == True) and ("The star" in result):
+        table,h= fitsio.read(home_path+'/Solver/images/capture.axy',header=True)
+        star_name_offset = table[0][0],table[0][1]
         lines = result.split('\n')
         for line in lines:
             if (line.startswith("  The star ")):
@@ -278,7 +282,9 @@ def measure_offset():
     if solve == False:
         display('solve failed','','')
         return
-    scope_x,scope_y = rd2xy(37.954,89.264136) # Polaris RA & Dec in J2000
+    #scope_x,scope_y = rd2xy(37.954,89.264136) # Polaris RA & Dec in J2000
+    scope_x = star_name_offset[0]
+    scope_y = star_name_offset[1]
     d_x,d_y,dxstr,dystr = pixel2dxdy(scope_x,scope_y) 
     param['d_x'] = d_x
     param['d_y'] = d_y
