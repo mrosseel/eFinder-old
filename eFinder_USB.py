@@ -36,7 +36,7 @@ ser = serial.Serial("/dev/ttyS0",baudrate=9600)
 
 home_path = str(Path.home())
 os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
-version = '11_10_9_USB'
+version = '12_3_USB'
 x = y = 0 # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
 label = ['','Exposure sec.','Camera Gain','Test Mode','50mm Finder']
@@ -49,6 +49,53 @@ star_name = "no star"
 solve = False
 sync_count = 0
 Nexus_aligned = False
+
+def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
+    Rad = math.pi/180
+    t=ts.now()
+    LST = t.gmst+Long/15 #as decimal hours
+    ra =ra * 15 # need to work in degrees now
+    LSTd = LST * 15
+    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360   
+    x = math.cos(LHA * Rad) * math.cos(dec * Rad)
+    y = math.sin(LHA * Rad) * math.cos(dec * Rad)
+    z = math.sin(dec * Rad)    
+    xhor = x * math.cos((90 - Lat) * Rad) - z * math.sin((90 - Lat) * Rad)
+    yhor = y
+    zhor = x * math.sin((90 - Lat) * Rad) + z * math.cos((90 - Lat) * Rad)
+    az = math.atan2(yhor, xhor) * (180/math.pi) + 180
+    alt = math.asin(zhor) * (180/math.pi)
+    return(alt,az)
+
+def dd2dms(dd):
+    is_positive = dd >= 0
+    dd = abs(dd)
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    sign = '+' if is_positive else '-'  
+    dms = '%s%02d:%02d:%02d' % (sign,degrees,minutes,seconds)
+    return(dms)
+
+def dd2aligndms(dd):
+    is_positive = dd >= 0
+    dd = abs(dd)
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    sign = '+' if is_positive else '-'  
+    dms = '%s%02d*%02d:%02d' % (sign,degrees,minutes,seconds)
+    return(dms)
+
+def ddd2dms(dd):
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    dms = '%03d:%02d:%02d' % (degrees,minutes,seconds)
+    return(dms)
+
+def hh2dms(dd):
+    minutes,seconds = divmod(dd*3600,60)
+    degrees,minutes = divmod(minutes,60)
+    dms = '%02d:%02d:%02d' % (degrees,minutes,seconds)
+    return(dms)
 
 def rd2xy(ra,dec): #returns the camera pixel x,y of the given RA & Dec
     result = subprocess.run(["wcs-rd2xy","-w",home_path+"/Solver/images/capture.wcs","-r",str(ra),"-d",str(dec)],capture_output=True, text=True)
@@ -91,7 +138,7 @@ def display(line0,line1,line2):
         box.write(bytes(('2:'+line2+'\n').encode('UTF-8')))
 
 def readNexus(): # Nexus USB port set to LX200 protocol
-    global nexus_Pos
+    global nexus_Pos,nexus_altaz, nexus_radec, scopeAlt
     ser.write(b':GR#')
     time.sleep(0.1)
     ra = str(ser.read(ser.in_waiting).decode('ascii')).strip('#').split(':')
@@ -101,13 +148,12 @@ def readNexus(): # Nexus USB port set to LX200 protocol
     ser.write(b':GW#')
     time.sleep(0.1)
     p = str(ser.read(ser.in_waiting),'ascii')
-    nexus = Star(ra_hours=(float(ra[0]),float(ra[1]),float(ra[2])),dec_degrees=(float(dec[0]),float(dec[1]),float(dec[2])),epoch=ts.now())
-    nexus_Pos=location.at(ts.now()).observe(nexus)
-    ra, dec, distance = nexus_Pos.radec()    
-    print ('Nexus RA: ',ra.hstr(format='{1:02}:{2:02}:{3:02}'))
-    print ('Nexus Dec: ',dec.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}'))
-    arr[0,1][0] = 'Nex: RA '+ra.hstr(format='{1:02}:{2:02}:{3:02}')
-    arr[0,1][1] = '   Dec '+dec.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}')
+    nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),math.copysign(abs(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600),float(dec[0]))
+    nexus_altaz = convAltaz(*(nexus_radec))
+    scopeAlt = nexus_altaz[0]*math.pi/180  
+    print ('Nexus RA:  ',hh2dms(nexus_radec[0]),'  Dec: ',dd2dms(nexus_radec[1]))
+    arr[0,1][0] = 'Nex: RA '+hh2dms(nexus_radec[0])
+    arr[0,1][1] = '   Dec '+dd2dms(nexus_radec[1])
     if p == 'AT2#':
         arr[0,4][1] = 'Nexus is aligned'
         arr[0,4][0] = "'Select' syncs"
@@ -145,7 +191,7 @@ def imgDisplay(): #displays the captured image on the Pi desktop.
     im.show()
 
 def solveImage(): 
-    global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset
+    global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset,solved_radec,solved_altaz, scopeAlt
     scale = 4*3.75 if param['200mm finder'] == '0' else 3.75
     scale_low = str(scale * 0.9)
     scale_high = str(scale * 1.1)
@@ -195,9 +241,12 @@ def solveImage():
                 print ('Solve-field Plot found: ',star_name)
                 break
     solvedPos = applyOffset()
-    ra,dec,d = solvedPos.radec()
-    arr[0,2][0] = 'Sol: RA '+ra.hstr(format='{1:02}:{2:02}:{3:02}')
-    arr[0,2][1] = '   Dec '+dec.dstr(format='{0:+>1}{1:02}:{2:02}:{3:02}')
+    ra,dec,d = solvedPos.apparent().radec(ts.now())
+    solved_radec = ra.hours,dec.degrees
+    solved_altaz = convAltaz(*(solved_radec))
+    scopeAlt = solved_altaz[0]*math.pi/180
+    arr[0,2][0] = 'Sol: RA '+hh2dms(solved_radec[0])
+    arr[0,2][1] = '   Dec '+dd2dms(solved_radec[1])
     arr[0,2][2] = 'time: '+str(elapsed_time)[0:4]+' s'
     solve = True
     deltaCalc()
@@ -211,16 +260,14 @@ def applyOffset():
 
 def deltaCalc():
     global deltaAz,deltaAlt,elapsed_time
-    alt_solved,az_solved,d = solvedPos.apparent().altaz()
-    alt_nexus,az_nexus,d = nexus_Pos.apparent().altaz()
-    deltaAz = az_solved.degrees - az_nexus.degrees 
+    deltaAz = solved_altaz[1] - nexus_altaz[1]
     if abs(deltaAz)>180:
         if deltaAz<0:
             deltaAz = deltaAz + 360
         else:
             deltaAz = deltaAz - 360
-    deltaAz = 60*(deltaAz*math.cos(alt_solved.radians)) #actually this is delta'x' in arcminutes
-    deltaAlt = alt_solved.degrees - alt_nexus.degrees 
+    deltaAz = 60*(deltaAz*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
+    deltaAlt = solved_altaz[0] - nexus_altaz[0] 
     deltaAlt = 60*(deltaAlt)  # in arcminutes
     deltaXstr = "{: .2f}".format(float(deltaAz))
     deltaYstr = "{: .2f}".format(float(deltaAlt))
@@ -237,9 +284,8 @@ def align():
     if solve==False:
         display (arr[x,y][0],'Solved Failed',arr[x,y][2])
         return 
-    ra,dec,d = solvedPos.radec()
-    align_ra=ra.hstr(format=':Sr{1:02}:{2:02}:{3:02}#')
-    align_dec=dec.dstr(format=':Sd{0:+>1}{1:02}*{2:02}:{3:02}#')
+    align_ra = ':Sr'+dd2dms((solved_radec)[0])+'#'
+    align_dec = ':Sd'+dd2aligndms((solved_radec)[1])+'#'
     ser.write(bytes(align_ra.encode('ascii')))
     time.sleep(0.1)
     print(align_ra)
@@ -282,7 +328,6 @@ def measure_offset():
     if solve == False:
         display('solve failed','','')
         return
-    #scope_x,scope_y = rd2xy(37.954,89.264136) # Polaris RA & Dec in J2000
     scope_x = star_name_offset[0]
     scope_y = star_name_offset[1]
     d_x,d_y,dxstr,dystr = pixel2dxdy(scope_x,scope_y) 
@@ -393,16 +438,25 @@ def go_solve():
 
 def goto():
     display('Attempting','GoTo++','')
+    ser.write(b':Gr#')
+    time.sleep(0.1)
+    goto_ra = ser.read(ser.in_waiting).decode('ascii')
+    if goto_ra[0:2] == '00' and goto_ra[3:5] == '00': # not a valid goto target set yet.
+        print ('no GoTo target')
+        return
+    ser.write(b':Gd#')
+    time.sleep(0.1)
+    goto_dec = str(ser.read(ser.in_waiting).decode('ascii'))
+    print ('goto RA & Dec',goto_ra,goto_dec)
     align()
     if solve == False:
         display('problem','solving','')
         return
+    ser.write(bytes((':Sr'+goto_ra).encode('ascii')))
+    ser.write(bytes((':Sd'+goto_dec).encode('ascii')))
     ser.write(b':MS#')
     time.sleep(0.1)
-    if str(ser.read(1),'ascii') != '0':
-        print('GoTo problem')
-        display('Problem with','GoTo++','')
-        return
+    reply = str(ser.read(1),'ascii')
     display('Performing',' GoTo++','')
     time.sleep(5) # replace with a check on goto progress
     go_solve()
@@ -441,6 +495,7 @@ def save_param():
     with open(home_path+"/Solver/eFinder.config", "w") as h:
         for key, value in param.items():
             h.write('%s:%s\n' % (key,value))
+
 
 #main code starts here
 

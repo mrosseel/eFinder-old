@@ -32,10 +32,11 @@ import socket
 import re
 from skyfield.api import load, Star, wgs84
 from pathlib import Path
+import csv
 import fitsio
 from fitsio import FITS,FITSHDR
   
-version = '12_1_wifi'
+version = '12_3_wifi'
 os.system('pkill -9 -f eFinder.py') # comment out if this is the autoboot program
 
 HOST = '10.0.0.1'
@@ -103,7 +104,7 @@ def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
     alt = math.asin(zhor) * (180/math.pi)
     return(alt,az)
 
-def dd2dms(dd): # converts Dec or Alt from signed decimal to D:M:S
+def dd2dms(dd):
     is_positive = dd >= 0
     dd = abs(dd)
     minutes,seconds = divmod(dd*3600,60)
@@ -112,7 +113,7 @@ def dd2dms(dd): # converts Dec or Alt from signed decimal to D:M:S
     dms = '%s%02d:%02d:%02d' % (sign,degrees,minutes,seconds)
     return(dms)
 
-def dd2aligndms(dd): # converts Dec or Alt from signed decimal to D*M:S with '*' as delimter (LX200 protocol)
+def dd2aligndms(dd):
     is_positive = dd >= 0
     dd = abs(dd)
     minutes,seconds = divmod(dd*3600,60)
@@ -121,13 +122,13 @@ def dd2aligndms(dd): # converts Dec or Alt from signed decimal to D*M:S with '*'
     dms = '%s%02d*%02d:%02d' % (sign,degrees,minutes,seconds)
     return(dms)
 
-def ddd2dms(dd): # converts Az from decimal to D:M:S
+def ddd2dms(dd):
     minutes,seconds = divmod(dd*3600,60)
     degrees,minutes = divmod(minutes,60)
     dms = '%03d:%02d:%02d' % (degrees,minutes,seconds)
     return(dms)
 
-def hh2dms(dd): # converts RA from decimal to D:M:S
+def hh2dms(dd):
     minutes,seconds = divmod(dd*3600,60)
     degrees,minutes = divmod(minutes,60)
     dms = '%02d:%02d:%02d' % (degrees,minutes,seconds)
@@ -155,7 +156,7 @@ def pixel2dxdy(pix_x,pix_y): # converts an image pixel x,y to a delta x,y in deg
     dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris 
     return(deg_x,deg_y,dxstr,dystr)
 
-def dxdy2pixel(dx,dy): # reverse of above
+def dxdy2pixel(dx,dy):
     pix_scale = 3.74715 if finder.get() == '1' else 4*3.74715
     pix_x = dx*3600/pix_scale + 640
     pix_y = 480 - dy*3600/pix_scale
@@ -174,16 +175,13 @@ def readNexus():
         time.sleep(0.1)
         dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
     radec = ra[0]+ra[1]+dec[0]+dec[1]
-    nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600)
+    nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),math.copysign(abs(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600),float(dec[0]))
     nexus_altaz = convAltaz(*(nexus_radec))
-    #nexus = Star(ra_hours=(float(ra[0]),float(ra[1]),float(ra[2])),dec_degrees=(float(dec[0]),float(dec[1]),float(dec[2])),epoch=ts.now())
-    #nexus_Pos=location.at(ts.now()).observe(nexus)
-    #ra, dec, d = nexus_Pos.radec()
     scopeAlt = nexus_altaz[0]*math.pi/180
-    tk.Label(window,width=10,anchor="e",text=hh2dms(nexus_radec[0]),bg=b_g,fg=f_g).place(x=225,y=804)
+    tk.Label(window,width=10,text=hh2dms(nexus_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=225,y=804)
     tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_radec[1]),bg=b_g,fg=f_g).place(x=225,y=826)
-    tk.Label(window,width=10,anchor="e",text=ddd2dms(nexus_altaz[0]),bg=b_g,fg=f_g).place(x=225,y=870)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_altaz[1]),bg=b_g,fg=f_g).place(x=225,y=892)
+    tk.Label(window,width=10,anchor="e",text=ddd2dms(nexus_altaz[1]),bg=b_g,fg=f_g).place(x=225,y=870)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_altaz[0]),bg=b_g,fg=f_g).place(x=225,y=892)
 
 def zwoInit():
     global camera, camType
@@ -231,7 +229,7 @@ def solveImage():
     name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
     limitOptions = 		(["--overwrite", 	# overwrite any existing files
                             "--skip-solved", 	# skip any files we've already solved
-                            "--cpulimit","10"	# limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
+                            "--cpulimit","5"	# limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
                             ]) 
     optimizedOptions = 	(["--downsample","2",	# downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
                             "--no-remove-lines",	# Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
@@ -261,10 +259,10 @@ def solveImage():
     if ("solved" not in result):
         box_write('Solve Failed')
         solved = False
-        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=315,y=804)
-        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=315,y=826)
-        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=315,y=870)
-        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=315,y=892)
+        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=410,y=804)
+        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=410,y=826)
+        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=410,y=870)
+        tk.Label(window,width=10,anchor="e",text='no solution',bg=b_g,fg=f_g).place(x=410,y=892)
         tk.Label(window,text=elapsed_time,bg=b_g,fg=f_g).place(x=315,y=936)
         return
     if offset_flag == True:
@@ -284,18 +282,18 @@ def solveImage():
             print ('No Named Star found')
             star_name = "Unknown"
     solvedPos = applyOffset()
-    ra,dec,d = solvedPos.radec(ts.now())
+    ra,dec,d = solvedPos.apparent().radec(ts.now())
     solved_radec = ra.hours,dec.degrees
-    #alt,az,d = solvedPos.apparent().altaz()
     solved_altaz = convAltaz(*(solved_radec))
     scopeAlt = solved_altaz[0]*math.pi/180
-    tk.Label(window,width=10,text=hh2dms(solved_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=315,y=804)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_radec[1]),bg=b_g,fg=f_g).place(x=315,y=826)
-    tk.Label(window,width=10,anchor="e",text=ddd2dms(solved_altaz[0]),bg=b_g,fg=f_g).place(x=315,y=870)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_altaz[1]),bg=b_g,fg=f_g).place(x=315,y=892)
+    tk.Label(window,width=10,text=hh2dms(solved_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=410,y=804)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_radec[1]),bg=b_g,fg=f_g).place(x=410,y=826)
+    tk.Label(window,width=10,anchor="e",text=ddd2dms(solved_altaz[1]),bg=b_g,fg=f_g).place(x=410,y=870)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_altaz[0]),bg=b_g,fg=f_g).place(x=410,y=892)
     solved = True
     box_write('solved')
     deltaCalc()
+    readTarget()
    
 def applyOffset(): # creates & returns a 'Skyfield star object' at the set offset and adjusted to Jnow
     x_offset,y_offset,dxstr,dystr = dxdy2pixel(offset[0],offset[1])
@@ -356,7 +354,7 @@ def annotate_image():
     os.system('solve-field --no-plots --new-fits none --solved none --match none --corr none \
             --rdls none --cpulimit 10 --temp-axy --overwrite --downsample 2 --no-remove-lines --uniformize 0 \
             --scale-units arcsecperpix --scale-low '+scale_low+' \
-            --scale-high '+scale_high+' /home/astrokeith/Solver/images/adjusted.jpg')
+            --scale-high '+scale_high+' '+home_path+'/Solver/images/adjusted.jpg')
     # now we can annotate the image adjusted.jpg
     opt1 = " " if bright.get() == '1' else " --no-bright"
     opt2 = " --hipcat=/usr/local/astrometry/annotate_data/hip.fits --hiplabel" if hip.get()=="1" else " "
@@ -367,9 +365,9 @@ def annotate_image():
     try: # try because the solve may have failed to produce adjusted.jpg
         os.system('python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
             --no-grid --tcolor="orange" --tsize="14" --no-const'+opt1+opt2+opt3+opt4+opt5+opt6+' \
-            /home/astrokeith/Solver/images/adjusted.wcs \
-            /home/astrokeith/Solver/images/adjusted.jpg \
-            /home/astrokeith/Solver/images/adjusted_out.jpg')
+            '+home_path+'/Solver/images/adjusted.wcs ' \
+            +home_path+'/Solver/images/adjusted.jpg ' \
+            +home_path+'/Solver/images/adjusted_out.jpg')
     except:
         pass
     if os.path.exists(home_path+"/Solver/images/adjusted_out.jpg") == True:
@@ -389,7 +387,7 @@ def annotate_image():
         box_write('solve failure')
         return
 
-def zoom_at(img, x, y, zoom): # used to crop and shift the image (zoom and offset)
+def zoom_at(img, x, y, zoom):
     w, h = img.size
     dh=(h-(h/zoom))/2
     dw=(w-(w/zoom))/2
@@ -404,13 +402,14 @@ def deltaCalc():
             deltaAz = deltaAz + 360
         else:
             deltaAz = deltaAz - 360
+    #print('cosine scopeAlt',math.cos(scopeAlt))
     deltaAz = 60*(deltaAz*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
     deltaAlt = solved_altaz[0] - nexus_altaz[0] 
     deltaAlt = 60*(deltaAlt)  # in arcminutes
     deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
     deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
-    tk.Label(window,width=10,anchor="e",text=deltaAzstr,bg=b_g,fg=f_g).place(x=410,y=870)
-    tk.Label(window,width=10,anchor="e",text=deltaAltstr,bg=b_g,fg=f_g).place(x=410,y=892)
+    tk.Label(window,width=10,anchor="e",text=deltaAzstr,bg=b_g,fg=f_g).place(x=315,y=870)
+    tk.Label(window,width=10,anchor="e",text=deltaAltstr,bg=b_g,fg=f_g).place(x=315,y=892)
 
 def moveScope(dAz,dAlt):
     azPulse = abs(dAz/float(param['azSpeed'])) # seconds
@@ -455,6 +454,7 @@ def align(): # sends the Nexus the solved RA & Dec (JNow) as an align or sync po
         return 
     align_ra = ':Sr'+dd2dms((solved_radec)[0])+'#'
     align_dec = ':Sd'+dd2aligndms((solved_radec)[1])+'#'
+
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST,PORT))
@@ -491,8 +491,6 @@ def align(): # sends the Nexus the solved RA & Dec (JNow) as an align or sync po
         box_write('Nexus error')
     tk.Label(window,text='align count: '+str(align_count),bg=b_g,fg=f_g).place(x=20,y=600)
     tk.Label(window,text='Nexus report: '+p[0:3],bg=b_g,fg=f_g).place(x=20,y=620)
-    NexStr = report[p[2]]
-    tk.Label(window,text ='Nexus '+NexStr,bg=b_g,fg=f_g).place(x=20,y=466)
     readNexus()
     deltaCalc()
 
@@ -521,7 +519,7 @@ def use_new():
     global offset
     offset = offset_new
     x_offset_new,y_offset_new,dxstr,dystr = dxdy2pixel(offset[0],offset[1])
-    tk.Label(window,text=dxstr+','+dystr,bg=b_g,fg=f_g,width=8).place(x=870,y=775)
+    tk.Label(window,text=dxstr+','+dystr,bg=b_g,fg=f_g,width=8).place(x=60,y=400)
 
 def save_offset():
     global param
@@ -556,48 +554,55 @@ def solve():
     image_show()
 
 def readTarget():
-    global target_radec,target_altaz
+    global goto_radec,goto_altaz, goto_ra,goto_dec
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # read original goto target RA & Dec
         s.connect((HOST,PORT))
         s.send(b':Gr#')
         time.sleep(0.1)
-        target_ra = s.recv(16).decode('ascii')
-        if target_ra[0:2] == '00' and target_ra[3:5] == '00': # not a valid goto target set yet.
+        goto_ra = s.recv(16).decode('ascii')
+        if goto_ra[0:2] == '00' and goto_ra[3:5] == '00': # not a valid goto target set yet.
             box_write('no GoTo target')
             return
+        ra = goto_ra.strip('#').split(':')
         s.send(b':Gd#')
         time.sleep(0.1)
-        target_dec = s.recv(16).decode('ascii')
-        ra = target_ra.strip('#').split(':')
-
-        s.send(b':GD#')
-        time.sleep(0.1)
-        dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
-        target_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600)
-        target_altaz = convAltaz(*(target_radec))
-        print ('goto RA & Dec',target_ra,target_dec)
-        return(target_ra,target_dec)
-
-
-
+        goto_dec = str(s.recv(16).decode('ascii'))
+        dec = re.split(r'[:*]',goto_dec.strip('#'))
+        print ('goto RA & Dec',goto_ra,goto_dec)     
+    goto_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600)
+    goto_altaz = convAltaz(*(goto_radec))
+    tk.Label(window,width=10,text=hh2dms(goto_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=605,y=804)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(goto_radec[1]),bg=b_g,fg=f_g).place(x=605,y=826)
+    tk.Label(window,width=10,anchor="e",text=ddd2dms(goto_altaz[1]),bg=b_g,fg=f_g).place(x=605,y=870)
+    tk.Label(window,width=10,anchor="e",text=dd2dms(goto_altaz[0]),bg=b_g,fg=f_g).place(x=605,y=892)
+    dt_Az = solved_altaz[1] - goto_altaz[1]
+    if abs(dt_Az)>180:
+        if dt_Az<0:
+            dt_Az = dt_Az + 360
+        else:
+            dt_Az = dt_Az - 360
+    dt_Az = 60*(dt_Az*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
+    dt_Alt = solved_altaz[0] - goto_altaz[0] 
+    dt_Alt = 60*(dt_Alt)  # in arcminutes
+    dt_Azstr = "{: .1f}".format(float(dt_Az)).ljust(8)[:8]
+    dt_Altstr = "{: .1f}".format(float(dt_Alt)).ljust(8)[:8]
+    tk.Label(window,width=10,anchor="e",text=dt_Azstr,bg=b_g,fg=f_g).place(x=500,y=870)
+    tk.Label(window,width=10,anchor="e",text=dt_Altstr,bg=b_g,fg=f_g).place(x=500,y=892)
+    
 def goto():
-    ra,dec = readTarget()
-    align() # local sync scope to true RA & Dec
+    readTarget()
+    align() # local sync scopt to true RA & Dec
     if solved == False:
         box_write('solve failed')
         return
-    time.sleep(0.2)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # send back the original goto target and command a goto
         s.connect((HOST,PORT))
-        s.send(bytes((':Sr'+ra).encode('ascii')))
-        s.send(bytes((':Sd'+dec).encode('ascii')))
+        s.send(bytes((':Sr'+goto_ra).encode('ascii')))
+        s.send(bytes((':Sd'+goto_dec).encode('ascii')))
         s.send(b':MS#')
         time.sleep(0.1)
         box_write("moving scope")
-        # print(str(s.recv(1),'ascii'))
-        # print('GoTo problem')
-        # box_write('goto problem')
-
+    
 def move():
     solveImage()
     image_show()
@@ -621,9 +626,6 @@ def move():
     print('goto radec',ra,dec)
     alt_g,az_g = convAltaz(ra,dec)
     print('target Az Alt',az_g,alt_g)
-    #ra,dec,d = solvedPos.radec(epoch=ts.now())
-    #az_s,alt_s = convAltaz(ra.hours,dec.degrees)
-    #print('solved Az Alt',az_s,alt_s)
     delta_Az = (az_g - solved_altaz[1])*60 # +ve move scope right
     delta_Alt = (alt_g - solved_altaz[0])*60 # +ve move scope up
     delta_Az_str = "{: .2f}".format(delta_Az)
@@ -747,8 +749,6 @@ tk.Label(window,text='UTC',bg=b_g,fg=f_g).place(x=15,y=22)
 tk.Label(window,text='LST',bg=b_g,fg=f_g).place(x=15,y=44)
 tk.Label(window,text='Loc:',bg=b_g,fg=f_g).place(x=15,y=66)
 tk.Label(window,width=18,anchor="w",text=str(Long)+'\u00b0  ' + str(Lat)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=66)
-#tk.Label(window,text='Lat:',bg=b_g,fg=f_g).place(x=15,y=88)
-#tk.Label(window,width=6,anchor="e",text=str(Lat)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=88)
 img = Image.open(home_path+'/Solver/M16.jpeg')
 img = img.resize((1014,760))
 img = ImageTk.PhotoImage(img)
@@ -788,20 +788,16 @@ test = StringVar()
 test.set(param['Test mode'])
 tk.Checkbutton(options_frame,text='M13 image',width=13,anchor="w",highlightbackground='black',activebackground='red',bg=b_g,fg=f_g, variable=test).pack(padx=1,pady=1)
 
-
-#tk.Label(window,text='ccd is '+camType,bg=b_g,fg=f_g).place(x=20,y=444)
-#tk.Label(window,text ='Nexus '+NexStr,bg=b_g,fg=f_g).place(x=20,y=466)
-
 box_write('ccd is '+camType)
 box_write('Nexus '+NexStr)
 
 but_frame = Frame(window,bg='black')
 but_frame.place(x=25,y=650)
 tk.Button(but_frame, text='Align',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,height=2,width=10,command=align).pack(padx=1,pady=40)
-tk.Button(but_frame, text='Capture',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=2,width=10,command=image).pack(padx=1,pady=10)
-tk.Button(but_frame, text='Solve',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=solve).pack(padx=1,pady=10)
-tk.Button(but_frame, text='Finish GoTo',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=goto).pack(padx=1,pady=10)
-tk.Button(but_frame, text='Move to Finish',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=move).pack(padx=1,pady=10)
+tk.Button(but_frame, text='Capture',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=2,width=10,command=image).pack(padx=1,pady=5)
+tk.Button(but_frame, text='Solve',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=solve).pack(padx=1,pady=5)
+tk.Button(but_frame, text='Finish GoTo',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=goto).pack(padx=1,pady=5)
+tk.Button(but_frame, text='Move to Finish',activebackground='red',highlightbackground='red',bd=0,height=2,width=10,bg=b_g,fg=f_g,command=move).pack(padx=1,pady=5)
 
 off_frame = Frame(window,bg='black')
 off_frame.place(x=10,y=420)
@@ -812,20 +808,22 @@ tk.Button(off_frame, text='Use Saved',activebackground='red',highlightbackground
 tk.Button(off_frame, text='Reset Offset',activebackground='red',highlightbackground='red',bd=0,bg=b_g,fg=f_g,height=1,width=8,command=reset_offset).pack(padx=1,pady=1)
 d_x,d_y,dxstr,dystr = pixel2dxdy(offset[0],offset[1])
 
-
-#tk.Label(window,text='not measured',bg=b_g,fg=f_g).place(x=110,y=400)
 tk.Label(window,text='Offset:',bg=b_g,fg=f_g).place(x=10,y=400)
 tk.Label(window,text='0,0',bg=b_g,fg=f_g,width=6).place(x=60,y=400)
-#tk.Label(window,text='dx,dy arc min',bg=b_g,fg=f_g).place(x=80,y=400)
+
 nex_frame = Frame(window,bg='black')
 nex_frame.place(x=250,y=766)
 tk.Button(nex_frame, text='Nexus',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,command=readNexus).pack(padx=1,pady=1)
 
-tk.Label(window,text='Solution',bg=b_g,fg=f_g).place(x=345,y=770)
-tk.Label(window,text='delta (dx,dy)',bg=b_g,fg=f_g).place(x=425,y=770)
+tk.Label(window,text='delta x,y',bg=b_g,fg=f_g).place(x=345,y=770)
+tk.Label(window,text='Solution',bg=b_g,fg=f_g).place(x=435,y=770)
+tk.Label(window,text='delta x,y',bg=b_g,fg=f_g).place(x=535,y=770)
+target_frame = Frame(window,bg='black')
+target_frame.place(x=620,y=766)
+tk.Button(target_frame, text='Target',bg=b_g,fg=f_g,activebackground='red',highlightbackground='red',bd=0,command=readTarget).pack(padx=1,pady=1)
 
 dis_frame = Frame(window,bg='black')
-dis_frame.place(x=550,y=765)
+dis_frame.place(x=800,y=765)
 tk.Button(dis_frame,text='Display',bg=b_g,fg=f_g,activebackground='red',anchor='w',highlightbackground='red',bd=0,width = 8,command=image_show).pack(padx=1,pady=1)
 lock = StringVar()
 lock.set("0")
@@ -851,7 +849,7 @@ tk.Entry(dis_frame,textvariable=angle,bg='red',fg=b_g,highlightbackground='red',
 
 
 ann_frame = Frame(window,bg='black')
-ann_frame.place(x=700,y=765)
+ann_frame.place(x=950,y=765)
 tk.Button(ann_frame,text='Annotate',bg=b_g, fg=f_g,activebackground='red',anchor='w',highlightbackground='red',bd=0,width=6, command=annotate_image).pack(padx=1,pady=1)
 bright = StringVar()
 bright.set("0")
@@ -882,7 +880,7 @@ EP.set("0")
 EP_frame = Frame(window,bg='black')
 EP_frame.place(x=1060,y=770)
 rad13 = Checkbutton(EP_frame,text='FOV indicator',bg=b_g,fg=f_g,activebackground='red',anchor='w', \
-                    highlightbackground='black',bd=0,width=12, variable=EP).pack(padx=1,pady=2)
+                    highlightbackground='black',bd=0,width=20, variable=EP).pack(padx=1,pady=2)
 EPlength = StringVar()
 EPlength.set(float(param['default_eyepiece']))
 for i in range(len(eye_piece)):
