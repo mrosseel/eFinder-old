@@ -36,9 +36,14 @@ from fitsio import FITS,FITSHDR
 HOST = '10.0.0.1'
 PORT = 4060
 home_path = str(Path.home())
-ser = serial.Serial("/dev/ttyS0",baudrate=9600)
+try:
+    ser = serial.Serial("/dev/ttyS0",baudrate=9600)
+    usb_dev = True
+except:
+    print('No USB device cable installed')
+    usb_dev = False
 os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
-version = '12_3_wifi'
+version = '13_1_wifi'
 x = y = 0 # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
 label = ['','Exposure sec.','Camera Gain','Test Mode','50mm Finder']
@@ -504,6 +509,8 @@ def save_param():
             h.write('%s:%s\n' % (key,value))
 
 def move():
+    if usb_dev == False:
+        return
     global solve
     trys = 1
     go_solve()
@@ -768,9 +775,10 @@ while True:    #next loop reads all buttons and sets display option x,y
         elif button == '18':
             exec(arr[x,y][6])
         button=''
-    if ser.in_waiting:
-        message = ser.read(ser.in_waiting).decode('ascii')
-        print('Requested from ScopeDog',message)
-        if message == 'goto++':
-            move()        
+    if usb_dev == True:
+        if ser.in_waiting:
+            message = ser.read(ser.in_waiting).decode('ascii')
+            print('Requested from ScopeDog',message)
+            if message == 'goto++':
+                move()        
     time.sleep(0.1)
