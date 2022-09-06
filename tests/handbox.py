@@ -13,18 +13,12 @@
 # This variant is customised for ZWO ASI ccds as camera, Nexus DSC as telescope interface
 # It requires astrometry.net installed
 
-import board
-import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
-import busio
 import time
 import serial
 
 
 def display(line0, line1, line2):
     global LCD_module, USB_module
-    if LCD_module == True:
-        lcd.clear()
-        lcd.message = line0+'\n'+line1
     if USB_module == True:
         box.write(bytes(('0:'+line0+'\n').encode('UTF-8')))
         box.write(bytes(('1:'+line1+'\n').encode('UTF-8')))
@@ -32,12 +26,6 @@ def display(line0, line1, line2):
 
 # main code starts here
 
-
-i2c = busio.I2C(board.SCL, board.SDA)
-lcd = character_lcd.Character_LCD_RGB_I2C(i2c, 16, 2)
-lcd.color = [100, 0, 0]
-LCD_module = True
-time.sleep(2)
 
 try:
     box = serial.Serial('/dev/ttyACM0',
@@ -55,8 +43,8 @@ try:
 except Exception as ex:
     USB_module = False
 
-display('ScopeDog', 'eFinder v'+version, '')
-print('LCD:', LCD_module, '  USB:', USB_module)
+display('ScopeDog', 'eFinder v13.1')
+print('  USB:', USB_module)
 
 
 time.sleep(5)
