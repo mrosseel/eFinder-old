@@ -12,7 +12,7 @@
 # GNU General Public License for more details.
 # This variant is customised for ZWO ASI ccds as camera, Nexus DSC as telescope interface
 # It requires astrometry.net installed
-
+import threading
 import subprocess
 import time
 import serial
@@ -286,7 +286,7 @@ def deltaCalc():
 
 def align():
     global align_count, solve, Lat, sync_count
-    readNexus()
+    #readNexus()
     zwoCapture()
     imgDisplay()
     solveImage()
@@ -327,6 +327,7 @@ def align():
             if p == 'AT2#':
                 sync_count +=1
                 display("'select' syncs",'Sync count '+str(align_count),'Nexus reply '+p[0:3])   
+    readNexus()
     return
     
 def measure_offset():
@@ -549,6 +550,16 @@ def move():
     ser.write(bytes((delta_Az_str+':'+delta_Alt_str).encode('ascii')))
     return
 
+def watch_dog():
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST,PORT))
+            s.send(b':GL#')
+            time.sleep(0.1)
+            p = str(s.recv(15),'ascii')
+            print (p)
+        time.sleep(30)
+
 #main code starts here
 
 try:
@@ -583,7 +594,8 @@ except Exception as ex:
 display('ScopeDog','eFinder v'+version,'')
 print('LCD:',LCD_module,'  USB:',USB_module)
 
-
+tick = threading.Thread(target=watch_dog)
+tick.start()
 #time.sleep(1)
 
 planets = load('de421.bsp')

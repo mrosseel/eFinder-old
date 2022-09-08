@@ -15,7 +15,7 @@
 # Optional is an Adafruit 2x16 line LCD with integrated buttons
 # It requires astrometry.net installed
 # It requires Skyfield
-
+import threading
 import subprocess
 import time
 import os
@@ -36,7 +36,7 @@ import csv
 import fitsio
 from fitsio import FITS,FITSHDR
   
-version = '12_3_wifi'
+version = '12_5_wifi'
 os.system('pkill -9 -f eFinder.py') # comment out if this is the autoboot program
 
 HOST = '10.0.0.1'
@@ -725,6 +725,16 @@ def save_param():
         for key, value in param.items():
             h.write('%s:%s\n' % (key,value))
 
+def watch_dog():
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST,PORT))
+            s.send(b':GL#')
+            time.sleep(0.1)
+            p = str(s.recv(15),'ascii')
+            print (p)
+        time.sleep(30)
+
 #main code starts here
 
 param = dict()
@@ -734,6 +744,9 @@ planets = load('de421.bsp')
 earth = planets['earth']
 ts = load.timescale()
 get_Nexus_geo()
+
+tick = threading.Thread(target=watch_dog)
+tick.start()
 
 zwoInit() # find and initialise a camera
 
