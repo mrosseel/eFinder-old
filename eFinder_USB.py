@@ -18,6 +18,7 @@ import time
 import serial
 import os
 import math
+import sys
 from PIL import Image
 import zwoasi as asi
 from datetime import datetime, timedelta
@@ -56,10 +57,10 @@ def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
     LST = t.gmst+Long/15 #as decimal hours
     ra =ra * 15 # need to work in degrees now
     LSTd = LST * 15
-    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360   
+    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360
     x = math.cos(LHA * Rad) * math.cos(dec * Rad)
     y = math.sin(LHA * Rad) * math.cos(dec * Rad)
-    z = math.sin(dec * Rad)    
+    z = math.sin(dec * Rad)
     xhor = x * math.cos((90 - Lat) * Rad) - z * math.sin((90 - Lat) * Rad)
     yhor = y
     zhor = x * math.sin((90 - Lat) * Rad) + z * math.cos((90 - Lat) * Rad)
@@ -72,7 +73,7 @@ def dd2dms(dd):
     dd = abs(dd)
     minutes,seconds = divmod(dd*3600,60)
     degrees,minutes = divmod(minutes,60)
-    sign = '+' if is_positive else '-'  
+    sign = '+' if is_positive else '-'
     dms = '%s%02d:%02d:%02d' % (sign,degrees,minutes,seconds)
     return(dms)
 
@@ -81,7 +82,7 @@ def dd2aligndms(dd):
     dd = abs(dd)
     minutes,seconds = divmod(dd*3600,60)
     degrees,minutes = divmod(minutes,60)
-    sign = '+' if is_positive else '-'  
+    sign = '+' if is_positive else '-'
     dms = '%s%02d*%02d:%02d' % (sign,degrees,minutes,seconds)
     return(dms)
 
@@ -116,7 +117,7 @@ def pixel2dxdy(pix_x,pix_y): # converts a pixel position, into a delta angular o
     deg_x = (float(pix_x) - 640)*pix_scale/3600 # in degrees
     deg_y = (480-float(pix_y))*pix_scale/3600
     dxstr = "{: .1f}".format(float(60*deg_x)) # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris 
+    dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris
     return(deg_x,deg_y,dxstr,dystr)
 
 def dxdy2pixel(dx,dy):
@@ -124,7 +125,7 @@ def dxdy2pixel(dx,dy):
     pix_x = dx*3600/pix_scale + 640
     pix_y = 480 - dy*3600/pix_scale
     dxstr = "{: .1f}".format(float(60*dx)) # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris 
+    dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris
     return(pix_x,pix_y,dxstr,dystr)
 
 def display(line0,line1,line2):
@@ -150,7 +151,7 @@ def readNexus(): # Nexus USB port set to LX200 protocol
     p = str(ser.read(ser.in_waiting),'ascii')
     nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),math.copysign(abs(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600),float(dec[0]))
     nexus_altaz = convAltaz(*(nexus_radec))
-    scopeAlt = nexus_altaz[0]*math.pi/180  
+    scopeAlt = nexus_altaz[0]*math.pi/180
     print ('Nexus RA:  ',hh2dms(nexus_radec[0]),'  Dec: ',dd2dms(nexus_radec[1]))
     arr[0,1][0] = 'Nex: RA '+hh2dms(nexus_radec[0])
     arr[0,1][1] = '   Dec '+dd2dms(nexus_radec[1])
@@ -190,7 +191,7 @@ def imgDisplay(): #displays the captured image on the Pi desktop.
     im = Image.open(home_path+'/Solver/images/capture.jpg')
     im.show()
 
-def solveImage(): 
+def solveImage():
     global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset,solved_radec,solved_altaz, scopeAlt
     scale = 4*3.75 if param['200mm finder'] == '0' else 3.75
     scale_low = str(scale * 0.9)
@@ -200,7 +201,7 @@ def solveImage():
     limitOptions = 		(["--overwrite", 	# overwrite any existing files
                             "--skip-solved", 	# skip any files we've already solved
                             "--cpulimit","10"	# limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-                            ]) 
+                            ])
     optimizedOptions = 	(["--downsample","2",	# downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
                             "--no-remove-lines",	# Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
                             "--uniformize","0"	# Saves ~1.25 sec. Just process the image as-is
@@ -221,8 +222,8 @@ def solveImage():
     captureFile = home_path+"/Solver/images/capture.jpg"
     options = limitOptions + optimizedOptions + scaleOptions + fileOptions + [captureFile]
     start_time=time.time()
-    # next line runs the plate-solve on the captured image file 
-    result = subprocess.run(cmd + name_that_star + options, capture_output=True, text=True) 
+    # next line runs the plate-solve on the captured image file
+    result = subprocess.run(cmd + name_that_star + options, capture_output=True, text=True)
     elapsed_time = time.time() - start_time
     print ('solve elapsed time '+str(elapsed_time)[0:4]+' sec\n')
     print (result.stdout) # this line added to help debug.
@@ -267,7 +268,7 @@ def deltaCalc():
         else:
             deltaAz = deltaAz - 360
     deltaAz = 60*(deltaAz*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
-    deltaAlt = solved_altaz[0] - nexus_altaz[0] 
+    deltaAlt = solved_altaz[0] - nexus_altaz[0]
     deltaAlt = 60*(deltaAlt)  # in arcminutes
     deltaXstr = "{: .2f}".format(float(deltaAz))
     deltaYstr = "{: .2f}".format(float(deltaAlt))
@@ -283,7 +284,7 @@ def align():
     solveImage()
     if solve==False:
         display (arr[x,y][0],'Solved Failed',arr[x,y][2])
-        return 
+        return
     align_ra = ':Sr'+dd2dms((solved_radec)[0])+'#'
     align_dec = ':Sd'+dd2aligndms((solved_radec)[1])+'#'
     ser.write(bytes(align_ra.encode('ascii')))
@@ -299,7 +300,7 @@ def align():
     if str(ser.read(1),'ascii') == '0':
         print('invalid position')
         display (arr[x,y][0],'Invalid position',arr[x,y][2])
-        return           
+        return
     ser.write(b':CM#')
     time.sleep(0.1)
     print(':CM#')
@@ -315,9 +316,9 @@ def align():
     else:
         if p == 'AT2#':
             sync_count +=1
-            display("'select' syncs",'Sync count '+str(align_count),'Nexus reply '+p[0:3])   
+            display("'select' syncs",'Sync count '+str(align_count),'Nexus reply '+p[0:3])
     return
-    
+
 def measure_offset():
     global offset_str, offset_flag, param, scope_x, scope_y, star_name
     offset_flag = True
@@ -330,7 +331,7 @@ def measure_offset():
         return
     scope_x = star_name_offset[0]
     scope_y = star_name_offset[1]
-    d_x,d_y,dxstr,dystr = pixel2dxdy(scope_x,scope_y) 
+    d_x,d_y,dxstr,dystr = pixel2dxdy(scope_x,scope_y)
     param['d_x'] = d_x
     param['d_y'] = d_y
     save_param()
@@ -392,12 +393,12 @@ def up_down(v):
     global x
     x = x + v
     display (arr[x,y][0],arr[x,y][1],arr[x,y][2])
-    
+
 def left_right(v):
     global y
     y = y + v
     display (arr[x,y][0],arr[x,y][1],arr[x,y][2])
-    
+
 def up_down_inc(i,sign):
     global increment
     arr[x,y][1] = int(arr[x,y][1])+increment[i]*sign
@@ -405,7 +406,7 @@ def up_down_inc(i,sign):
     display (arr[x,y][0],arr[x,y][1],arr[x,y][2])
     update_summary()
     time.sleep(0.1)
-    
+
 def flip():
     global param
     arr[x,y][1] = 1-int(arr[x,y][1])
@@ -554,7 +555,7 @@ home =      [   'ScopeDog',
                 'eFinder',
                 'ver'+version,
                 '',
-                'up_down(1)',  
+                'up_down(1)',
                 '',
                 'left_right(1)',
                 'go_solve()',
@@ -671,13 +672,13 @@ if Nexus_aligned == True:
 #find a camera
 asi.init("/lib/zwoasi/armv7/libASICamera2.so")
 num_cameras = asi.get_num_cameras()
-if num_cameras == 0:   
+if num_cameras == 0:
     display('Error:','   no camera found','')
-    exit()
+    sys.exit()
 else:
     cameras_found = asi.list_cameras()
     camera_id = 0
-    zwoInit()  
+    zwoInit()
     display('ZWO camera found','','')
     print('camera found')
     time.sleep(1)
