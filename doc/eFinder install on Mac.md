@@ -12,4 +12,5 @@ conda install astropy
 pip install Skyfield
 pip install zwoasi
 conda install pillow
+conda install pyserial psutil
 ```
