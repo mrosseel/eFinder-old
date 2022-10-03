@@ -30,6 +30,7 @@ import tkinter as tk
 from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
 from shutil import copyfile
 import socket
+import select
 import re
 from skyfield.api import load, Star, wgs84
 from pathlib import Path
@@ -669,6 +670,13 @@ def box_write(new_line):
     for i in range(0,5,1):
         tk.Label(window,text=box_list[i],bg=b_g,fg=f_g).place(x=1050,y=980-i*16)
 
+def reader():
+    global button
+    while True:
+        if box in select.select([box], [], [], 0)[0]:
+            button = box.readline().decode('ascii').strip('\r\n')
+            window.event_generate("<<OLED_Button>>")
+        time.sleep(0.1)
 
 def get_param():
     global eye_piece, param, expRange, gainRange
@@ -696,8 +704,36 @@ def save_param():
         for key, value in param.items():
             h.write('%s:%s\n' % (key,value))
 
+def display(line0,line1,line2):
+    if USB_module == True:
+        box.write(bytes(('0:'+line0+'\n').encode('UTF-8')))
+        box.write(bytes(('1:'+line1+'\n').encode('UTF-8')))
+        box.write(bytes(('2:'+line2+'\n').encode('UTF-8')))
+        
+def do_button(event):
+    #do something
+    print('doing something')
+    
 #main code starts here
-            
+try:
+    box = serial.Serial( '/dev/ttyACM0',
+                     baudrate = 115200,
+                     stopbits = serial.STOPBITS_ONE,
+                     bytesize = serial.EIGHTBITS,
+                     writeTimeout = 0,
+                     timeout = 0,
+                     rtscts = False,
+                     dsrdtr = False )
+    box.write(b'0:ScopeDog eFinder\n')
+    box.write(b'1:eFinder found   \n')
+    box.write(b'2:VNCGUI running  \n')
+    USB_module = True
+except Exception as ex:
+    USB_module = False
+
+
+
+
 try: # remove this section if no LCD  module is to be fitted
     import board
     import busio
@@ -758,11 +794,17 @@ window = tk.Tk()
 window.title("ScopeDog eFinder v"+version)
 window.geometry('1300x1000+100+40')
 window.configure(bg='black')
-
+window.bind("<<OLED_Button>>",do_button)
 setup_sidereal()
 
 sid = threading.Thread(target=sidereal)
 sid.start()
+
+button = ""
+if USB_module == True:
+    scan = threading.Thread(target=reader)
+    scan.start()
+
 
 tk.Label(window,text='Date',fg=f_g,bg=b_g).place(x=15,y=0)
 tk.Label(window,text='UTC',bg=b_g,fg=f_g).place(x=15,y=22)
