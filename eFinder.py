@@ -12,7 +12,7 @@
 # GNU General Public License for more details.
 # This variant is customised for ZWO ASI ccds as camera, Nexus DSC as telescope interface
 # It requires astrometry.net installed
-import threading
+
 import subprocess
 import time
 import serial
@@ -25,37 +25,83 @@ import psutil
 from shutil import copyfile
 import socket
 import re
-import sys
 from skyfield.api import load, Star, wgs84
 import numpy as np
+import threading
 import select
 from pathlib import Path
 import fitsio
 from fitsio import FITS,FITSHDR
 
-HOST = '10.0.0.1'
-PORT = 4060
 home_path = str(Path.home())
-try:
-    ser = serial.Serial("/dev/ttyS0",baudrate=9600)
-    usb_dev = True
-except:
-    print('No USB device cable installed')
-    usb_dev = False
 os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
-version = '13_1_wifi'
+version = '13_1'
 x = y = 0 # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
 label = ['','Exposure sec.','Camera Gain','Test Mode','50mm Finder']
+value = [0,1,25,True,False]
 increment = [0,1,5,1,1]
 offset_flag = False
 align_count = 0
-scope_x = 640
-scope_y = 480
-solve = False
+offset = 640,480
 star_name = "no star"
+solve = False
 sync_count = 0
 Nexus_aligned = False
+Nexus_link = 'none'
+
+class Nexus:
+    def write(txt):
+        #print('write',flag)
+        if Nexus_link == 'USB':
+            ser.write(bytes(txt.encode('ascii')))
+        else:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((HOST,PORT))
+                s.send(bytes(txt.encode('ascii')))
+        print('sent',txt,'to Nexus')
+        
+    def get(txt):
+        if Nexus_link == 'USB':
+            ser.write(bytes(txt.encode('ascii')))
+            time.sleep(0.1)
+            res = str(ser.read(ser.in_waiting).decode('ascii')).strip('#')
+        else:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((HOST,PORT))
+                s.send(bytes(txt.encode('ascii')))
+                time.sleep(0.1)
+                res = str(s.recv(16).decode('ascii')).strip('#')
+        print('sent',txt,'got',res,'from Nexus')
+        return (res)
+    
+    def read(): # establishes Nexus is talking to us and get observer location and time data
+        global location,Long,Lat, Nexus_aligned
+        Lt = Nexus.get(':Gt#')[0:6].split('*')
+        Lat = float(Lt[0]+'.'+Lt[1])
+        Lg = Nexus.get(':Gg#')[0:7].split('*')
+        Long = -1*float(Lg[0]+'.'+Lg[1])
+        location = earth+wgs84.latlon(Lat,Long)
+        local_time = Nexus.get(':GL#')
+        local_date = Nexus.get(':GC#')
+        local_offset = float(Nexus.get(':GG#'))
+        print('Nexus reports: local datetime as',local_date, local_time, ' local offset:',local_offset)
+        date_parts = local_date.split('/')
+        local_date = date_parts[0]+'/'+date_parts[1]+'/20'+date_parts[2]
+        dt_str = local_date+' '+local_time
+        format  = "%m/%d/%Y %H:%M:%S"
+        local_dt = datetime.strptime(dt_str, format)
+        new_dt = local_dt + timedelta(hours = local_offset)
+        print('Calculated UTC',new_dt)
+        print('setting pi clock to:',end = " ")
+        os.system('sudo date -u --set "%s"' % new_dt+'.000Z')
+        p = Nexus.get(':GW#')
+        if p != 'AT2#':
+            display('Nexus reports','not aligned yet','')
+        else:
+            display('eFinder ready','Nexus reports'+p,'')
+            Nexus_aligned = True
+        time.sleep(1)
 
 def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
     Rad = math.pi/180
@@ -63,10 +109,10 @@ def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
     LST = t.gmst+Long/15 #as decimal hours
     ra =ra * 15 # need to work in degrees now
     LSTd = LST * 15
-    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360
+    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360   
     x = math.cos(LHA * Rad) * math.cos(dec * Rad)
     y = math.sin(LHA * Rad) * math.cos(dec * Rad)
-    z = math.sin(dec * Rad)
+    z = math.sin(dec * Rad)    
     xhor = x * math.cos((90 - Lat) * Rad) - z * math.sin((90 - Lat) * Rad)
     yhor = y
     zhor = x * math.sin((90 - Lat) * Rad) + z * math.cos((90 - Lat) * Rad)
@@ -79,7 +125,7 @@ def dd2dms(dd):
     dd = abs(dd)
     minutes,seconds = divmod(dd*3600,60)
     degrees,minutes = divmod(minutes,60)
-    sign = '+' if is_positive else '-'
+    sign = '+' if is_positive else '-'  
     dms = '%s%02d:%02d:%02d' % (sign,degrees,minutes,seconds)
     return(dms)
 
@@ -88,7 +134,7 @@ def dd2aligndms(dd):
     dd = abs(dd)
     minutes,seconds = divmod(dd*3600,60)
     degrees,minutes = divmod(minutes,60)
-    sign = '+' if is_positive else '-'
+    sign = '+' if is_positive else '-'  
     dms = '%s%02d*%02d:%02d' % (sign,degrees,minutes,seconds)
     return(dms)
 
@@ -123,7 +169,7 @@ def pixel2dxdy(pix_x,pix_y): # converts a pixel position, into a delta angular o
     deg_x = (float(pix_x) - 640)*pix_scale/3600 # in degrees
     deg_y = (480-float(pix_y))*pix_scale/3600
     dxstr = "{: .1f}".format(float(60*deg_x)) # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris
+    dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris 
     return(deg_x,deg_y,dxstr,dystr)
 
 def dxdy2pixel(dx,dy):
@@ -131,7 +177,7 @@ def dxdy2pixel(dx,dy):
     pix_x = dx*3600/pix_scale + 640
     pix_y = 480 - dy*3600/pix_scale
     dxstr = "{: .1f}".format(float(60*dx)) # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris
+    dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris 
     return(pix_x,pix_y,dxstr,dystr)
 
 def display(line0,line1,line2):
@@ -145,24 +191,16 @@ def display(line0,line1,line2):
         box.write(bytes(('2:'+line2+'\n').encode('UTF-8')))
 
 def readNexus(): # Nexus USB port set to LX200 protocol
-    global nscopeAlt,nexus_altaz, nexus_radec, scopeAlt
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST,PORT))
-        s.send(b':GR#')
-        time.sleep(0.1)
-        ra = str(s.recv(16).decode('ascii')).strip('#').split(':')
-        s.send(b':GD#')
-        time.sleep(0.1)
-        dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
-        s.send(b':GW#')
-        time.sleep(0.1)
-        p = str(s.recv(4),'ascii')
+    global nexus_Pos,nexus_altaz, nexus_radec, scopeAlt, Nexus_aligned
+    ra = Nexus.get(':GR#').split(':')
+    dec = re.split(r'[:*]',Nexus.get(':GD#'))
     nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),math.copysign(abs(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600),float(dec[0]))
     nexus_altaz = convAltaz(*(nexus_radec))
-    scopeAlt = nexus_altaz[0]*math.pi/180
+    scopeAlt = nexus_altaz[0]*math.pi/180  
     print ('Nexus RA:  ',hh2dms(nexus_radec[0]),'  Dec: ',dd2dms(nexus_radec[1]))
     arr[0,1][0] = 'Nex: RA '+hh2dms(nexus_radec[0])
     arr[0,1][1] = '   Dec '+dd2dms(nexus_radec[1])
+    p = Nexus.get(':GW#')
     if p == 'AT2#':
         arr[0,4][1] = 'Nexus is aligned'
         arr[0,4][0] = "'Select' syncs"
@@ -199,7 +237,7 @@ def imgDisplay(): #displays the captured image on the Pi desktop.
     im = Image.open(home_path+'/Solver/images/capture.jpg')
     im.show()
 
-def solveImage():
+def solveImage(): 
     global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset,solved_radec,solved_altaz, scopeAlt
     scale = 4*3.75 if param['200mm finder'] == '0' else 3.75
     scale_low = str(scale * 0.9)
@@ -209,7 +247,7 @@ def solveImage():
     limitOptions = 		(["--overwrite", 	# overwrite any existing files
                             "--skip-solved", 	# skip any files we've already solved
                             "--cpulimit","10"	# limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-                            ])
+                            ]) 
     optimizedOptions = 	(["--downsample","2",	# downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
                             "--no-remove-lines",	# Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
                             "--uniformize","0"	# Saves ~1.25 sec. Just process the image as-is
@@ -230,10 +268,11 @@ def solveImage():
     captureFile = home_path+"/Solver/images/capture.jpg"
     options = limitOptions + optimizedOptions + scaleOptions + fileOptions + [captureFile]
     start_time=time.time()
-    result = subprocess.run(cmd + name_that_star + options, capture_output=True, text=True)
+    # next line runs the plate-solve on the captured image file 
+    result = subprocess.run(cmd + name_that_star + options, capture_output=True, text=True) 
     elapsed_time = time.time() - start_time
     print ('solve elapsed time '+str(elapsed_time)[0:4]+' sec\n')
-    #print (result.stdout) # this line added to help debug.
+    print (result.stdout) # this line added to help debug.
     result = str(result.stdout)
     if ("solved" not in result):
         print('Bad Luck - Solve Failed')
@@ -260,7 +299,6 @@ def solveImage():
     deltaCalc()
 
 def applyOffset():
-    global x_offset,y_offset
     x_offset,y_offset,dxstr,dystr = dxdy2pixel(float(param['d_x']),float(param['d_y']))
     ra,dec = xy2rd(x_offset,y_offset)
     solved = Star(ra_hours=ra/15,dec_degrees=dec) # will set as J2000 as no epoch input
@@ -276,7 +314,7 @@ def deltaCalc():
         else:
             deltaAz = deltaAz - 360
     deltaAz = 60*(deltaAz*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
-    deltaAlt = solved_altaz[0] - nexus_altaz[0]
+    deltaAlt = solved_altaz[0] - nexus_altaz[0] 
     deltaAlt = 60*(deltaAlt)  # in arcminutes
     deltaXstr = "{: .2f}".format(float(deltaAz))
     deltaYstr = "{: .2f}".format(float(deltaAlt))
@@ -285,51 +323,42 @@ def deltaCalc():
     arr[0,3][2] = 'time: '+str(elapsed_time)[0:4]+' s'
 
 def align():
-    global align_count, solve, Lat, sync_count
-    #readNexus()
+    global align_count, solve, Lat, sync_count, Nexus_aligned
+    readNexus()
     zwoCapture()
     imgDisplay()
     solveImage()
     if solve==False:
         display (arr[x,y][0],'Solved Failed',arr[x,y][2])
-        return
+        return 
     align_ra = ':Sr'+dd2dms((solved_radec)[0])+'#'
     align_dec = ':Sd'+dd2aligndms((solved_radec)[1])+'#'
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST,PORT))
-        s.send(bytes(align_ra.encode('ascii')))
-        time.sleep(0.1)
-        print(align_ra)
-        if str(s.recv(1),'ascii') == '0':
-            print('invalid position')
-            display (arr[x,y][0],'Invalid position',arr[x,y][2])
-            return
-        s.send(bytes(align_dec.encode('ascii')))
-        time.sleep(0.1)
-        print(align_dec)
-        if str(s.recv(1),'ascii') == '0':
-            print('invalid position')
-            display (arr[x,y][0],'Invalid position',arr[x,y][2])
-            return
-        s.send(b':CM#')
-        time.sleep(0.1)
-        print(':CM#')
-        reply = str(s.recv(20),'ascii')
-        print('reply: ',reply)
-        s.send(b':GW#')
-        time.sleep(0.1)
-        p = str(s.recv(16),'ascii')
-        print('Align status reply ',p)
-        align_count +=1
-        if p != 'AT2#':
-            display("'select' aligns",'align count: '+str(align_count),'Nexus reply: '+p[0:3])
-        else:
-            if p == 'AT2#':
-                sync_count +=1
-                display("'select' syncs",'Sync count '+str(align_count),'Nexus reply '+p[0:3])
-    readNexus()
+    valid = Nexus.get(align_ra)
+    print(align_ra)
+    if valid == '0':
+        print('invalid position')
+        display (arr[x,y][0],'Invalid position',arr[x,y][2])
+        return
+    valid = Nexus.get(align_dec)
+    print(align_dec)
+    if valid == '0':
+        print('invalid position')
+        display (arr[x,y][0],'Invalid position',arr[x,y][2])
+        return           
+    reply = Nexus.get(':CM#')
+    print('reply: ',reply)
+    p = Nexus.get(':GW#')
+    print('Align status reply ',p)
+    align_count +=1
+    if p != 'AT2#':
+        display("'select' aligns",'align count: '+str(align_count),'Nexus reply: '+p[0:3])
+    else:
+        if p == 'AT2#':
+            sync_count +=1
+            display("'select' syncs",'Sync count '+str(align_count),'Nexus reply '+p[0:3])
+            Nexus_aligned = True
     return
-
+    
 def measure_offset():
     global offset_str, offset_flag, param, scope_x, scope_y, star_name
     offset_flag = True
@@ -342,7 +371,7 @@ def measure_offset():
         return
     scope_x = star_name_offset[0]
     scope_y = star_name_offset[1]
-    d_x,d_y,dxstr,dystr = pixel2dxdy(scope_x,scope_y)
+    d_x,d_y,dxstr,dystr = pixel2dxdy(scope_x,scope_y) 
     param['d_x'] = d_x
     param['d_y'] = d_y
     save_param()
@@ -352,63 +381,16 @@ def measure_offset():
     display(arr[0,5][0],arr[0,5][1],star_name+' found')
     offset_flag = False
 
-def readNexusData(): # establishes Nexus is talking to us and get observer location and time data
-    global location,Long,Lat, Nexus_aligned
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST,PORT))
-        display('looking for','Nexus','')
-        s.send(b'#:P#')
-        time.sleep(0.1)
-        p = str(s.recv(15),'ascii')
-        if p[0] == 'L': # means in low precision mode
-            s.send(b'#:U#') # toggle to high precision
-        display('Wifi link to','Nexus is open','')
-        print('Wifi to Nexus open')
-        s.send(b'#:Gt#')
-        time.sleep(0.1)
-        Lt = (str(s.recv(7),'ascii'))[0:6].split('*')
-        Lat = float(Lt[0]+'.'+Lt[1])
-        s.send(b':Gg#')
-        time.sleep(0.1)
-        Lg = (str(s.recv(8),'ascii'))[0:7].split('*')
-        Long = -1*float(Lg[0]+'.'+Lg[1])
-        location = earth+wgs84.latlon(Lat,Long)
-        s.send(b':GL#')
-        local_time = str(s.recv(16),'ascii').strip('#')
-        s.send(b':GC#')
-        local_date = str(s.recv(16),'ascii').strip('#')
-        s.send(b':GG#')
-        local_offset = float(str(s.recv(16),'ascii').strip('#'))
-        print('Nexus reports: local datetime as',local_date, local_time, ' local offset:',local_offset)
-        date_parts = local_date.split('/')
-        local_date = date_parts[0]+'/'+date_parts[1]+'/20'+date_parts[2]
-        dt_str = local_date+' '+local_time
-        format  = "%m/%d/%Y %H:%M:%S"
-        local_dt = datetime.strptime(dt_str, format)
-        new_dt = local_dt + timedelta(hours = local_offset)
-        print('Calculated UTC',new_dt)
-        print('setting pi clock to:',end = " ")
-        os.system('sudo date -u --set "%s"' % new_dt+'.000Z')
-        s.send(b':GW#')
-        time.sleep(0.1)
-        p = str(s.recv(4),'ascii')
-        if p != 'AT2#':
-            display('Nexus reports','not aligned yet','')
-        else:
-            display('eFinder ready','Nexus reports'+p,'')
-            Nexus_aligned = True
-        time.sleep(1)
-
 def up_down(v):
     global x
     x = x + v
     display (arr[x,y][0],arr[x,y][1],arr[x,y][2])
-
+    
 def left_right(v):
     global y
     y = y + v
     display (arr[x,y][0],arr[x,y][1],arr[x,y][2])
-
+    
 def up_down_inc(i,sign):
     global increment
     arr[x,y][1] = int(arr[x,y][1])+increment[i]*sign
@@ -416,7 +398,7 @@ def up_down_inc(i,sign):
     display (arr[x,y][0],arr[x,y][1],arr[x,y][2])
     update_summary()
     time.sleep(0.1)
-
+    
 def flip():
     global param
     arr[x,y][1] = 1-int(arr[x,y][1])
@@ -449,30 +431,20 @@ def go_solve():
 
 def goto():
     display('Attempting','GoTo++','')
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # read original goto target RA & Dec
-        s.connect((HOST,PORT))
-        s.send(b':Gr#')
-        time.sleep(0.1)
-        goto_ra = s.recv(16).decode('ascii')
-        if goto_ra[0:2] == '00' and goto_ra[3:5] == '00': # not a valid goto target set yet.
-            print ('no GoTo target')
-            return
-        s.send(b':Gd#')
-        time.sleep(0.1)
-        goto_dec = str(s.recv(16).decode('ascii'))
-        print ('goto RA & Dec',goto_ra,goto_dec)
+    goto_ra = Nexus.get(':Gr#')
+    if goto_ra[0:2] == '00' and goto_ra[3:5] == '00': # not a valid goto target set yet.
+        print ('no GoTo target')
+        return
+    goto_dec = Nexus.get(':Gd#')
+    print ('goto RA & Dec',goto_ra,goto_dec)
     align()
     if solve == False:
         display('problem','solving','')
         return
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST,PORT))
-        s.send(bytes((':Sr'+goto_ra).encode('ascii')))
-        s.send(bytes((':Sd'+goto_dec).encode('ascii')))
-        s.send(b':MS#')
-        time.sleep(0.1)
-        reply = str(s.recv(1),'ascii')
-        display('Performing',' GoTo++','')
+    Nexus.write(':Sr'+goto_ra+'#')
+    Nexus.write(':Sd'+goto_dec+'#')
+    reply = Nexus.get(':MS#')
+    display('Performing',' GoTo++','')
     time.sleep(5) # replace with a check on goto progress
     go_solve()
 
@@ -486,12 +458,14 @@ def reset_offset():
     display(arr[x,y][0],arr[x,y][1],arr[x,y][2])
     save_param()
 
+
 def reader():
     global button
     while True:
         if box in select.select([box], [], [], 0)[0]:
             button = box.readline().decode('ascii').strip('\r\n')
         time.sleep(0.1)
+
 
 def get_param():
     global param, offset_str
@@ -509,72 +483,8 @@ def save_param():
         for key, value in param.items():
             h.write('%s:%s\n' % (key,value))
 
-def move():
-    if usb_dev == False:
-        return
-    global solve
-    trys = 1
-    go_solve()
-    while solve == False:
-        if trys < 4:
-            trys +=1
-            time.sleep(1)
-            go_solve()
-        print('solved failed after 3 attempts')
-        display('solved failed','after 3 attempts','')
-        ser.write(bytes(('99.9:99.9').encode('ascii')))
-        return
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST,PORT))
-        s.send(b':Gr#')
-        time.sleep(0.1)
-        goto_ra = str(s.recv(16).decode('ascii')).strip('#').split(':')
-        if goto_ra[0] == '00' and goto_ra[1] == '00': # not a valid goto target set yet.
-            display('no target set yet','','')
-            return
-        s.send(b':Gd#')
-        time.sleep(0.1)
-        goto_dec = re.split(r'[:*]',str(s.recv(16).decode('ascii')).strip('#'))
-    print ('goto RA & Dec',goto_ra,goto_dec)
-    ra = float(goto_ra[0])+float(goto_ra[1])/60+float(goto_ra[2])/3600
-    dec = float(goto_dec[0]) + float(goto_dec[1])/60 + float(goto_dec[2])/3600
-    print('goto radec',ra,dec)
-    alt_g,az_g = convAltaz(ra,dec)
-    print('target Az Alt',az_g,alt_g)
-    delta_Az = (az_g - solved_altaz[1])*60 # +ve move scope right
-    delta_Alt = (alt_g - solved_altaz[0])*60 # +ve move scope up
-    delta_Az_str = "{:.1f}".format(delta_Az)
-    delta_Alt_str = "{:.1f}".format(delta_Alt)
-    display ('moving dAz dAlt',delta_Az_str+','+delta_Alt_str,'')
-    print("deltaAz, deltaAlt:",delta_Az_str,delta_Alt_str)
-    ser.write(bytes((delta_Az_str+':'+delta_Alt_str).encode('ascii')))
-    return
-
-def watch_dog():
-    while True:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((HOST,PORT))
-            s.send(b':GL#')
-            time.sleep(0.1)
-            p = str(s.recv(15),'ascii')
-            print (p)
-        time.sleep(30)
 
 #main code starts here
-
-try:
-    import board
-    import busio
-    import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
-    i2c = busio.I2C(board.SCL, board.SDA)
-    lcd = character_lcd.Character_LCD_RGB_I2C(i2c, 16, 2)
-    lcd.color = [100, 0, 0]
-    LCD_module = True
-    time.sleep(2)
-except Exception as ex:
-    print('no LCD setup',ex)
-    LCD_module = False
-
 try:
     box = serial.Serial( '/dev/ttyACM0',
                      baudrate = 115200,
@@ -591,18 +501,66 @@ try:
 except Exception as ex:
     USB_module = False
 
+try:
+    import board
+    import busio
+    import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
+    i2c = busio.I2C(board.SCL, board.SDA)
+    lcd = character_lcd.Character_LCD_RGB_I2C(i2c, 16, 2)
+    lcd.color = [100, 0, 0]
+    LCD_module = True
+    time.sleep(2)
+except Exception as ex:
+    print('no LCD setup',ex)
+    LCD_module = False
+
+try:
+    ser = serial.Serial("/dev/ttyS0",baudrate=9600)
+    ser.write(b':P#')
+    time.sleep(0.1)
+    p = str(ser.read(ser.in_waiting),'ascii')
+    if p[0] == 'L':
+        ser.write(b':U#')
+    ser.write(b':P#')
+    time.sleep(0.1)
+    print ('Connected to Nexus in',str(ser.read(ser.in_waiting),'ascii'),'via USB')
+    display('Found Nexus','via USB','')
+    time.sleep(1)
+    Nexus_link = 'USB'
+except:
+    HOST = '10.0.0.1'
+    PORT = 4060
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2)
+            s.connect((HOST,PORT))
+            s.send(b':P#')
+            time.sleep(0.1)
+            p = str(s.recv(15),'ascii')
+            if p[0] == 'L':
+                s.send(b':U#')
+            s.send(b':P#')
+            time.sleep(0.1)
+            print ('Connected to Nexus in',str(s.recv(15),'ascii'),'via wifi')
+            display('Found Nexus','via WiFi','')
+            time.sleep(1)
+            Nexus_link = 'Wifi'
+    except:
+        print('no USB or Wifi link to Nexus')
+        display('Nexus not found','','')
+
+
 display('ScopeDog','eFinder v'+version,'')
 print('LCD:',LCD_module,'  USB:',USB_module)
 
-tick = threading.Thread(target=watch_dog)
-tick.start()
+
 #time.sleep(1)
 
 planets = load('de421.bsp')
 earth = planets['earth']
 ts = load.timescale()
 
-readNexusData()
+Nexus.read()
 param = dict()
 get_param()
 
@@ -617,7 +575,7 @@ home =      [   'ScopeDog',
                 'eFinder',
                 'ver'+version,
                 '',
-                'up_down(1)',
+                'up_down(1)',  
                 '',
                 'left_right(1)',
                 'go_solve()',
@@ -658,7 +616,7 @@ aligns =     [  "'Select' aligns",
                 'left_right(1)',
                 'align()',
                 '']
-polar =     [   "'Select' Br.Star",
+polar =     [   "'Select' Polaris",
                 offset_str,
                 '',
                 '',
@@ -704,7 +662,7 @@ gn =        [   'Gain',
                 'go_solve()',
                 'goto()']
 mode =      [   'Test mode',
-                param['Test mode'],
+                int(param['Test mode']),
                 '',
                 'flip()',
                 'flip()',
@@ -713,7 +671,16 @@ mode =      [   'Test mode',
                 'go_solve()',
                 'goto()']
 finder =    [   '200mm finder',
-                param['200mm finder'],
+                int(param['200mm finder']),
+                '',
+                'flip()',
+                'flip()',
+                'left_right(-1)',
+                'left_right(1)',
+                'go_solve()',
+                'goto()']
+status =    [   'Nexus via '+ Nexus_link,
+                'Nex align ' + str(Nexus_aligned),
                 '',
                 'flip()',
                 'flip()',
@@ -722,8 +689,7 @@ finder =    [   '200mm finder',
                 'go_solve()',
                 'goto()']
 
-
-arr = np.array([[home,nex,sol,delta,aligns,polar,reset],[summary,exp,gn,mode,finder,finder,finder]])
+arr = np.array([[home,nex,sol,delta,aligns,polar,reset],[summary,exp,gn,mode,finder,status,status]])
 update_summary()
 deg_x,deg_y,dxstr,dystr = dxdy2pixel(float(param['d_x']),float(param['d_y']))
 offset_str = dxstr+','+dystr
@@ -734,13 +700,13 @@ if Nexus_aligned == True:
 #find a camera
 asi.init("/lib/zwoasi/armv7/libASICamera2.so")
 num_cameras = asi.get_num_cameras()
-if num_cameras == 0:
+if num_cameras == 0:   
     display('Error:','   no camera found','')
-    sys.exit()
+    exit()
 else:
     cameras_found = asi.list_cameras()
     camera_id = 0
-    zwoInit()
+    zwoInit()  
     display('ZWO camera found','','')
     print('camera found')
     time.sleep(1)
@@ -787,10 +753,4 @@ while True:    #next loop reads all buttons and sets display option x,y
         elif button == '18':
             exec(arr[x,y][6])
         button=''
-    if usb_dev == True:
-        if ser.in_waiting:
-            message = ser.read(ser.in_waiting).decode('ascii')
-            print('Requested from ScopeDog',message)
-            if message == 'goto++':
-                move()
     time.sleep(0.1)

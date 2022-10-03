@@ -1,5 +1,24 @@
 # Changelog for efinder software
 
+## Version 13
+
+[Keith Venables, Wim De Meester]
+
+The clock section in the GUI variant is now a thread and runs nice and smooth. (Wim’s code - Thx)
+
+I’ve pulled out all the Nexus communications into a Class method. On boot the code also determines how it can connect to the Nexus, usb or wifi. Thus these variants aren't needed any more. This will make code changes a lot easier.
+
+For instance the Nexus RA can be obtained by single call
+ra = Nexus.get(:GR#)
+
+Some Nexus commands don’t produce a reply, so they are
+
+Nexus.write(:P#)
+
+etc
+
+Nexus.read() produces a grab of all the location and time data from the Nexus.
+
 ## Version 12
 
 [Keith Venables]
