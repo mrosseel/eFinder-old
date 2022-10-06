@@ -15,6 +15,8 @@ class Nexus:
         self.nexus_link = "none"
         self.coordinates = coordinates
         self.NexStr = "not connected"
+        self.long = 0
+        self.lat = 0
 
         try:
             self.ser = serial.Serial("/dev/ttyS0", baudrate=9600)
