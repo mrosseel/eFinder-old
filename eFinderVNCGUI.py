@@ -562,6 +562,9 @@ def move():
 def on_closing():
     save_param()
     try:
+        import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
+        import board
+        import busio
         i2c = busio.I2C(board.SCL, board.SDA)
         lcd = character_lcd.Character_LCD_RGB_I2C(i2c, 16, 2)
         lcd.color = [100, 0, 0]
@@ -582,8 +585,8 @@ def box_write(new_line):
 def reader():
     global button
     while True:
-        if box in select.select([box], [], [], 0)[0]:
-            button = box.readline().decode('ascii').strip('\r\n')
+        if handpad.get_box() in select.select([handpad.get_box()], [], [], 0)[0]:
+            button = handpad.get_box().readline().decode('ascii').strip('\r\n')
             window.event_generate("<<OLED_Button>>")
         time.sleep(0.1)
 
@@ -612,12 +615,6 @@ def save_param():
     with open(home_path+"/Solver/eFinder.config", "w") as h:
         for key, value in param.items():
             h.write('%s:%s\n' % (key,value))
-
-def display(line0,line1,line2):
-    if handpad.is_USB_module() == True:
-        box.write(bytes(('0:'+line0+'\n').encode('UTF-8')))
-        box.write(bytes(('1:'+line1+'\n').encode('UTF-8')))
-        box.write(bytes(('2:'+line2+'\n').encode('UTF-8')))
 
 def do_button(event):
     #do something
