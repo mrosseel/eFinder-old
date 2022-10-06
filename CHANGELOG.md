@@ -1,4 +1,16 @@
-# Changelog for efinder software
+# Changelog for eFinder software
+
+## Version 14
+
+[Keith Venables]
+
+- Make the handpad work with the VNC GUI version
+
+[Wim De Meester]
+
+- Move the Nexus code to a class outside of the main classes
+- Create a Coordinates class to transform RA and dec to AltAz
+- Create a handpad class with all code for the display box
 
 ## Version 13
 

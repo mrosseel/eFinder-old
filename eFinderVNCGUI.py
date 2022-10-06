@@ -19,6 +19,7 @@
 import subprocess
 import time
 import os
+import sys
 import glob
 from os import path
 import math
@@ -38,13 +39,16 @@ import csv
 import fitsio
 from fitsio import FITS,FITSHDR
 import threading
-  
-version = '12_6_usb'
+import Nexus
+import Coordinates
+import Display
+
+version = '14_1_VNC'
 os.system('pkill -9 -f eFinder.py') # comment out if this is the autoboot program
 
 home_path = str(Path.home())
 
-    
+
 deltaAz = deltaAlt = 0
 scope_x = scope_y = 0
 d_x_str = d_y_str = "0"
@@ -63,58 +67,10 @@ b_g = 'black'
 solved_radec = 0,0
 usb = False
 
-class Nexus:
-    def write(txt):
-        #print('write',flag)
-        if usb == True:
-            ser.write(bytes(txt.encode('ascii')))
-        else:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect((HOST,PORT))
-                s.send(bytes(txt.encode('ascii')))
-        print('sent',txt,'to Nexus')
-        
-    def get(txt):
-        if usb == True:
-            ser.write(bytes(txt.encode('ascii')))
-            time.sleep(0.1)
-            res = str(ser.read(ser.in_waiting).decode('ascii')).strip('#')
-        else:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect((HOST,PORT))
-                s.send(bytes(txt.encode('ascii')))
-                time.sleep(0.1)
-                res = str(s.recv(16).decode('ascii')).strip('#')
-        print('sent',txt,'got',res,'from Nexus')
-        return (res)
-    
-    def read():
-        global location,Long,Lat,NexStr
-        Lt = Nexus.get(':Gt#')[0:6].split('*')
-        Lat = float(Lt[0]+'.'+Lt[1])
-        Lg = Nexus.get(':Gg#')[0:7].split('*')
-        Long = -1*float(Lg[0]+'.'+Lg[1])
-        location = earth+wgs84.latlon(Lat,Long)
-        local_time = Nexus.get(':GL#')
-        local_date = Nexus.get(':GC#')
-        local_offset = float(Nexus.get(':GG#'))
-        print('Nexus reports: local datetime as',local_date, local_time, ' local offset:',local_offset)
-        date_parts = local_date.split('/')
-        local_date = date_parts[0]+'/'+date_parts[1]+'/20'+date_parts[2]
-        dt_str = local_date+' '+local_time
-        format  = "%m/%d/%Y %H:%M:%S"
-        local_dt = datetime.strptime(dt_str, format)
-        new_dt = str(local_dt + timedelta(hours = local_offset))
-        print('Calculated UTC',new_dt)
-        print('setting pi clock:')
-        os.system('sudo date -u -s "%s"' % new_dt)
-        p = Nexus.get(':GW#')
-        print('Nexus reports',p)
-
 def setup_sidereal():
     global LST, lbl_LST, lbl_UTC, lbl_date
     t=ts.now()
-    LST = t.gmst+Long/15 #as decimal hours
+    LST = t.gmst+nexus.get_long()/15 #as decimal hours
     LSTstr = str(int(LST))+'h '+str(int((LST*60) % 60))+'m '+str(int((LST*3600) % 60))+'s'
     lbl_LST=Label(window,bg=b_g,fg=f_g,text=LSTstr)
     lbl_LST.place(x=55,y=44)
@@ -126,57 +82,12 @@ def setup_sidereal():
 def sidereal():
     global LST
     t=ts.now()
-    LST = t.gmst+Long/15 #as decimal hours
+    LST = t.gmst+nexus.get_long()/15 #as decimal hours
     LSTstr = str(int(LST))+'h '+str(int((LST*60) % 60))+'m '+str(int((LST*3600) % 60))+'s'
     lbl_LST.config(text=LSTstr)
     lbl_UTC.config(text=t.utc_strftime('%H:%M:%S'))
     lbl_date.config(text=t.utc_strftime('%d %b %Y'))
     lbl_LST.after(1000, sidereal)
-
-def convAltaz(ra,dec): # decimal ra in hours, decimal dec.
-    Rad = math.pi/180
-    ra =ra * 15 # need to work in degrees now
-    LSTd = LST * 15
-    LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360)/360))*360   
-    x = math.cos(LHA * Rad) * math.cos(dec * Rad)
-    y = math.sin(LHA * Rad) * math.cos(dec * Rad)
-    z = math.sin(dec * Rad)    
-    xhor = x * math.cos((90 - Lat) * Rad) - z * math.sin((90 - Lat) * Rad)
-    yhor = y
-    zhor = x * math.sin((90 - Lat) * Rad) + z * math.cos((90 - Lat) * Rad)
-    az = math.atan2(yhor, xhor) * (180/math.pi) + 180
-    alt = math.asin(zhor) * (180/math.pi)
-    return(alt,az)
-
-def dd2dms(dd):
-    is_positive = dd >= 0
-    dd = abs(dd)
-    minutes,seconds = divmod(dd*3600,60)
-    degrees,minutes = divmod(minutes,60)
-    sign = '+' if is_positive else '-'  
-    dms = '%s%02d:%02d:%02d' % (sign,degrees,minutes,seconds)
-    return(dms)
-
-def dd2aligndms(dd):
-    is_positive = dd >= 0
-    dd = abs(dd)
-    minutes,seconds = divmod(dd*3600,60)
-    degrees,minutes = divmod(minutes,60)
-    sign = '+' if is_positive else '-'  
-    dms = '%s%02d*%02d:%02d' % (sign,degrees,minutes,seconds)
-    return(dms)
-
-def ddd2dms(dd):
-    minutes,seconds = divmod(dd*3600,60)
-    degrees,minutes = divmod(minutes,60)
-    dms = '%03d:%02d:%02d' % (degrees,minutes,seconds)
-    return(dms)
-
-def hh2dms(dd):
-    minutes,seconds = divmod(dd*3600,60)
-    degrees,minutes = divmod(minutes,60)
-    dms = '%02d:%02d:%02d' % (degrees,minutes,seconds)
-    return(dms)
 
 def rd2xy(ra,dec): # returns the image x,y pixel corrsponding to a J2000 RA & Dec
     result = subprocess.run(["wcs-rd2xy","-w",home_path+"/Solver/images/capture.wcs","-r",str(ra),"-d",str(dec)],capture_output=True, text=True)
@@ -197,7 +108,7 @@ def pixel2dxdy(pix_x,pix_y): # converts an image pixel x,y to a delta x,y in deg
     deg_x = (float(pix_x) - 640)*pix_scale/3600 # in degrees
     deg_y = (480-float(pix_y))*pix_scale/3600
     dxstr = "{: .1f}".format(float(60*deg_x)) # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris 
+    dystr = "{: .1f}".format(float(60*deg_y)) # +ve if finder is looking below Polaris
     return(deg_x,deg_y,dxstr,dystr)
 
 def dxdy2pixel(dx,dy):
@@ -205,21 +116,17 @@ def dxdy2pixel(dx,dy):
     pix_x = dx*3600/pix_scale + 640
     pix_y = 480 - dy*3600/pix_scale
     dxstr = "{: .1f}".format(float(60*dx)) # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris 
+    dystr = "{: .1f}".format(float(60*dy)) # +ve if finder is looking below Polaris
     return(pix_x,pix_y,dxstr,dystr)
-    
+
 def readNexus():
-    global scopeAlt,radec, nexus_altaz, nexus_radec
-    ra = Nexus.get(':GR#').split(':')
-    dec = re.split(r'[:*]',Nexus.get(':GD#'))
-    radec = ra[0]+ra[1]+dec[0]+dec[1]
-    nexus_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),math.copysign(abs(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600),float(dec[0]))
-    nexus_altaz = convAltaz(*(nexus_radec))
-    scopeAlt = nexus_altaz[0]*math.pi/180
-    tk.Label(window,width=10,text=hh2dms(nexus_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=225,y=804)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_radec[1]),bg=b_g,fg=f_g).place(x=225,y=826)
-    tk.Label(window,width=10,anchor="e",text=ddd2dms(nexus_altaz[1]),bg=b_g,fg=f_g).place(x=225,y=870)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(nexus_altaz[0]),bg=b_g,fg=f_g).place(x=225,y=892)
+    nexus.read_altAz(None)
+    nexus_radec = nexus.get_radec()
+    nexus_altaz = nexus.get_altAz()
+    tk.Label(window,width=10,text=coordinates.hh2dms(nexus_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=225,y=804)
+    tk.Label(window,width=10,anchor="e",text=coordinates.dd2dms(nexus_radec[1]),bg=b_g,fg=f_g).place(x=225,y=826)
+    tk.Label(window,width=10,anchor="e",text=coordinates.ddd2dms(nexus_altaz[1]),bg=b_g,fg=f_g).place(x=225,y=870)
+    tk.Label(window,width=10,anchor="e",text=coordinates.dd2dms(nexus_altaz[0]),bg=b_g,fg=f_g).place(x=225,y=892)
 
 def zwoInit():
     global camera, camType
@@ -248,7 +155,7 @@ def capture():
     timestr = time.strftime("%Y%m%d-%H%M%S")
     camera = asi.Camera(0)
     camera.set_control_value(asi.ASI_GAIN, gn)
-    camera.set_control_value(asi.ASI_EXPOSURE, exp)#microseconds "change to expTime * 1000000"   
+    camera.set_control_value(asi.ASI_EXPOSURE, exp)#microseconds "change to expTime * 1000000"
     if test.get() == '1':
         copyfile(home_path+'/Solver/test.jpg',home_path+'/Solver/images/capture.jpg')
     elif polaris.get() == '1':
@@ -257,7 +164,7 @@ def capture():
         camera.capture(filename=home_path+'/Solver/images/capture.jpg')
         copyfile(home_path+'/Solver/images/capture.jpg',home_path+'/Solver/Stills/'+timestr+'_'+radec+'.jpg')
     image_show()
-    
+
 def solveImage():
     global solved, scopeAlt, star_name, star_name_offset,solved_radec,solved_altaz
     scale = 3.75 if finder.get() == '1' else 4*3.75
@@ -268,7 +175,7 @@ def solveImage():
     limitOptions = 		(["--overwrite", 	# overwrite any existing files
                             "--skip-solved", 	# skip any files we've already solved
                             "--cpulimit","5"	# limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-                            ]) 
+                            ])
     optimizedOptions = 	(["--downsample","2",	# downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
                             "--no-remove-lines",	# Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
                             "--uniformize","0"	# Saves ~1.25 sec. Just process the image as-is
@@ -291,7 +198,7 @@ def solveImage():
     result = subprocess.run(cmd + name_that_star +  options, capture_output=True, text=True)
     elapsed_time = time.time() - start_time
     #print (result.stdout)
-    elapsed_time = 'elapsed time '+str(elapsed_time)[0:4]+' sec' 
+    elapsed_time = 'elapsed time '+str(elapsed_time)[0:4]+' sec'
     tk.Label(window,text=elapsed_time,width = 20,anchor="e",bg=b_g,fg=f_g).place(x=315,y=936)
     result = str(result.stdout)
     if ("solved" not in result):
@@ -322,22 +229,22 @@ def solveImage():
     solvedPos = applyOffset()
     ra,dec,d = solvedPos.apparent().radec(ts.now())
     solved_radec = ra.hours,dec.degrees
-    solved_altaz = convAltaz(*(solved_radec))
+    solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
     scopeAlt = solved_altaz[0]*math.pi/180
-    tk.Label(window,width=10,text=hh2dms(solved_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=410,y=804)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_radec[1]),bg=b_g,fg=f_g).place(x=410,y=826)
-    tk.Label(window,width=10,anchor="e",text=ddd2dms(solved_altaz[1]),bg=b_g,fg=f_g).place(x=410,y=870)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(solved_altaz[0]),bg=b_g,fg=f_g).place(x=410,y=892)
+    tk.Label(window,width=10,text=coordinates.hh2dms(solved_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=410,y=804)
+    tk.Label(window,width=10,anchor="e",text=coordinates.dd2dms(solved_radec[1]),bg=b_g,fg=f_g).place(x=410,y=826)
+    tk.Label(window,width=10,anchor="e",text=coordinates.ddd2dms(solved_altaz[1]),bg=b_g,fg=f_g).place(x=410,y=870)
+    tk.Label(window,width=10,anchor="e",text=coordinates.dd2dms(solved_altaz[0]),bg=b_g,fg=f_g).place(x=410,y=892)
     solved = True
     box_write('solved')
     deltaCalc()
     readTarget()
-   
+
 def applyOffset(): # creates & returns a 'Skyfield star object' at the set offset and adjusted to Jnow
     x_offset,y_offset,dxstr,dystr = dxdy2pixel(offset[0],offset[1])
     ra,dec = xy2rd(x_offset,y_offset)
     solved = Star(ra_hours=float(ra)/15,dec_degrees=float(dec)) # will set as J2000 as no epoch input
-    solvedPos_scope = location.at(ts.now()).observe(solved) # now at Jnow and current location
+    solvedPos_scope = nexus.get_location().at(ts.now()).observe(solved) # now at Jnow and current location
     return(solvedPos_scope)
 
 def image_show():
@@ -385,7 +292,7 @@ def annotate_image():
     global img3
     scale = 3.75 if finder.get() == '1' else 4*3.75
     scale_low = str(scale * 0.9 * 1.2) # * 1.2 is because image has been resized for the display panel
-    scale_high = str(scale * 1.1 * 1.2) 
+    scale_high = str(scale * 1.1 * 1.2)
     image_show()
     img3 = img3.save(home_path+"/Solver/images/adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
@@ -431,9 +338,10 @@ def zoom_at(img, x, y, zoom):
     dw=(w-(w/zoom))/2
     img = img.crop((dw +x, dh - y, w-dw+x, h-dh-y))
     return img.resize((w, h), Image.LANCZOS)
-    
+
 def deltaCalc():
     global deltaAz,deltaAlt
+    nexus_altaz = nexus.get_altAz()
     deltaAz = solved_altaz[1] - nexus_altaz[1]
     if abs(deltaAz)>180:
         if deltaAz<0:
@@ -442,7 +350,7 @@ def deltaCalc():
             deltaAz = deltaAz - 360
     #print('cosine scopeAlt',math.cos(scopeAlt))
     deltaAz = 60*(deltaAz*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
-    deltaAlt = solved_altaz[0] - nexus_altaz[0] 
+    deltaAlt = solved_altaz[0] - nexus_altaz[0]
     deltaAlt = 60*(deltaAlt)  # in arcminutes
     deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
     deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
@@ -453,29 +361,29 @@ def moveScope(dAz,dAlt):
     azPulse = abs(dAz/float(param['azSpeed'])) # seconds
     altPulse = abs(dAlt/float(param['altSpeed']))
     print('%s %.2f  %s  %.2f %s' % ('azPulse:',azPulse,'altPulse:',altPulse,'seconds'))
-    Nexus.write('#:RG#') # set move speed to guide
+    nexus.write('#:RG#') # set move speed to guide
     box_write('moving scope in Az')
     print('moving scope in Az')
     if dAz > 0: #if +ve move scope left
-        Nexus.write('#:Me#')
+        nexus.write('#:Me#')
         time.sleep(azPulse)
-        Nexus.write('#:Q#')
+        nexus.write('#:Q#')
     else:
-        Nexus.write('#:Mw#')
+        nexus.write('#:Mw#')
         time.sleep(azPulse)
-        Nexus.write('#:Q#')
+        nexus.write('#:Q#')
     time.sleep(0.2)
     box_write('moving scope in Alt')
     print('moving scope in Alt')
-    Nexus.write('#:RG#')
+    nexus.write('#:RG#')
     if dAlt > 0: #if +ve move scope down
-        Nexus.write('#:Ms#')
+        nexus.write('#:Ms#')
         time.sleep(altPulse)
-        Nexus.write('#:Q#')
+        nexus.write('#:Q#')
     else:
-        Nexus.write('#:Mn#')
+        nexus.write('#:Mn#')
         time.sleep(altPulse)
-        Nexus.write('#:Q#')
+        nexus.write('#:Q#')
     box_write('move finished')
     print('move finished')
     time.sleep(1)
@@ -487,30 +395,30 @@ def align(): # sends the Nexus the solved RA & Dec (JNow) as an align or sync po
     solveImage()
     readNexus()
     if solved==False:
-        return 
-    align_ra = ':Sr'+dd2dms((solved_radec)[0])+'#'
-    align_dec = ':Sd'+dd2aligndms((solved_radec)[1])+'#'
+        return
+    align_ra = ':Sr' + coordinates.dd2dms((solved_radec)[0])+'#'
+    align_dec = ':Sd' + coordinates.dd2aligndms((solved_radec)[1])+'#'
 
     try:
-        valid = Nexus.get(align_ra)
+        valid = nexus.get(align_ra)
         print('sent align RA command:',align_ra)
         box_write('sent '+align_ra)
         if valid == '0':
             box_write('invalid position')
             tk.Label(window,text="invalid alignment").place(x=20,y=680)
             return
-        valid = Nexus.get(align_dec)
+        valid = nexus.get(align_dec)
         print('sent align Dec command:',align_dec)
         box_write('sent '+align_dec)
         if valid == '0':
             box_write('invalid position')
-            tk.Label(window,text="invalid alignment").place(x=20,y=680)               
-            return           
-        reply = Nexus.get(':CM#')
+            tk.Label(window,text="invalid alignment").place(x=20,y=680)
+            return
+        reply = nexus.get(':CM#')
         print(':CM#')
         box_write('sent :CM#')
         print('reply: ',reply)
-        p = Nexus.get(':GW#')
+        p = nexus.get(':GW#')
         print('Align status reply ',p[0:3])
         box_write('Align reply:'+p[0:3])
         align_count +=1
@@ -542,7 +450,7 @@ def measure_offset():
     offset_new = d_x,d_y
     tk.Label(window,text=dxstr_new+','+dystr_new+'          ',width=9,anchor='w',bg=b_g,fg=f_g).place(x=110,y=450)
     offset_flag=False
-    
+
 def use_new():
     global offset
     offset = offset_new
@@ -583,20 +491,20 @@ def solve():
 
 def readTarget():
     global goto_radec,goto_altaz, goto_ra,goto_dec
-    goto_ra = Nexus.get(':Gr#')
+    goto_ra = nexus.get(':Gr#')
+    goto_dec = nexus.get(':Gd#')
     if goto_ra[0:2] == '00' and goto_ra[3:5] == '00': # not a valid goto target set yet.
         box_write('no GoTo target')
         return
     ra = goto_ra.split(':')
-    goto_dec = Nexus.get(':Gd#')
     dec = re.split(r'[:*]',goto_dec)
-    print ('goto RA & Dec',goto_ra,goto_dec)     
+    print ('goto RA & Dec',goto_ra,goto_dec)
     goto_radec = (float(ra[0]) + float(ra[1])/60 + float(ra[2])/3600),(float(dec[0]) + float(dec[1])/60 + float(dec[2])/3600)
-    goto_altaz = convAltaz(*(goto_radec))
-    tk.Label(window,width=10,text=hh2dms(goto_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=605,y=804)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(goto_radec[1]),bg=b_g,fg=f_g).place(x=605,y=826)
-    tk.Label(window,width=10,anchor="e",text=ddd2dms(goto_altaz[1]),bg=b_g,fg=f_g).place(x=605,y=870)
-    tk.Label(window,width=10,anchor="e",text=dd2dms(goto_altaz[0]),bg=b_g,fg=f_g).place(x=605,y=892)
+    goto_altaz = coordinates.conv_altaz(nexus, *(goto_radec))
+    tk.Label(window,width=10,text=coordinates.hh2dms(goto_radec[0]),anchor="e",bg=b_g,fg=f_g).place(x=605,y=804)
+    tk.Label(window,width=10,anchor="e",text=coordinates.dd2dms(goto_radec[1]),bg=b_g,fg=f_g).place(x=605,y=826)
+    tk.Label(window,width=10,anchor="e",text=coordinates.ddd2dms(goto_altaz[1]),bg=b_g,fg=f_g).place(x=605,y=870)
+    tk.Label(window,width=10,anchor="e",text=coordinates.dd2dms(goto_altaz[0]),bg=b_g,fg=f_g).place(x=605,y=892)
     dt_Az = solved_altaz[1] - goto_altaz[1]
     if abs(dt_Az)>180:
         if dt_Az<0:
@@ -604,47 +512,48 @@ def readTarget():
         else:
             dt_Az = dt_Az - 360
     dt_Az = 60*(dt_Az*math.cos(scopeAlt)) #actually this is delta'x' in arcminutes
-    dt_Alt = solved_altaz[0] - goto_altaz[0] 
+    dt_Alt = solved_altaz[0] - goto_altaz[0]
     dt_Alt = 60*(dt_Alt)  # in arcminutes
     dt_Azstr = "{: .1f}".format(float(dt_Az)).ljust(8)[:8]
     dt_Altstr = "{: .1f}".format(float(dt_Alt)).ljust(8)[:8]
     tk.Label(window,width=10,anchor="e",text=dt_Azstr,bg=b_g,fg=f_g).place(x=500,y=870)
     tk.Label(window,width=10,anchor="e",text=dt_Altstr,bg=b_g,fg=f_g).place(x=500,y=892)
-    
+
 def goto():
+    global goto_ra, goto_dec
     readTarget()
     align() # local sync scope to true RA & Dec
     if solved == False:
         box_write('solve failed')
         return
-    Nexus.write(':Sr'+goto_ra+'#')
-    Nexus.write(':Sd'+goto_dec+'#')
-    reply = Nexus.get(':MS#')
+    nexus.write(':Sr' + goto_ra + '#')
+    nexus.write(':Sd' + goto_dec + '#')
+    reply = nexus.get(':MS#')
     time.sleep(0.1)
     box_write("moving scope")
-    
+
 def move():
     solveImage()
     image_show()
     if solved == False:
         box_write('no solution yet')
         return
-    goto_ra = Nexus.get(':Gr#').split(':')
+    goto_ra = nexus.get(':Gr#').split(':')
+    goto_dec = re.split(r'[:*]',nexus.get(':Gd#'))
     if goto_ra[0] == '00' and goto_ra[1] == '00': # not a valid goto target set yet.
         box_write('no GoTo target')
         return
-    goto_dec = re.split(r'[:*]',Nexus.get(':Gd#'))
     print ('goto RA & Dec',goto_ra,goto_dec)
     ra = float(goto_ra[0])+float(goto_ra[1])/60+float(goto_ra[2])/3600
     dec = float(goto_dec[0]) + float(goto_dec[1])/60 + float(goto_dec[2])/3600
     print('goto radec',ra,dec)
-    alt_g,az_g = convAltaz(ra,dec)
+    alt_g,az_g = coordinates.conv_altaz(nexus, ra,dec)
     print('target Az Alt',az_g,alt_g)
     delta_Az = (az_g - solved_altaz[1])*60 # +ve move scope right
     delta_Alt = (alt_g - solved_altaz[0])*60 # +ve move scope up
     delta_Az_str = "{: .2f}".format(delta_Az)
     delta_Alt_str = "{: .2f}".format(delta_Alt)
-    print("deltaAz, deltaAlt:",delta_Az_str,delta_Alt_str)    
+    print("deltaAz, deltaAlt:",delta_Az_str,delta_Alt_str)
     box_write("deltaAz : "+delta_Az_str)
     box_write("deltaAlt: "+delta_Alt_str)
     moveScope(delta_Az,delta_Alt)
@@ -660,8 +569,8 @@ def on_closing():
         lcd.message = "eFinder GUI\n by VNC has Quit"
     except:
         pass
-    exit()
-    
+    sys.exit()
+
 def box_write(new_line):
     t=ts.now()
     for i in range(5,0,-1):
@@ -692,7 +601,7 @@ def get_param():
                     expRange = line[1].split(',')
                 elif (line[0].startswith("Gain_range")):
                     gainRange = line[1].split(',')
-                    
+
 
 def save_param():
     global param
@@ -705,87 +614,28 @@ def save_param():
             h.write('%s:%s\n' % (key,value))
 
 def display(line0,line1,line2):
-    if USB_module == True:
+    if handpad.is_USB_module() == True:
         box.write(bytes(('0:'+line0+'\n').encode('UTF-8')))
         box.write(bytes(('1:'+line1+'\n').encode('UTF-8')))
         box.write(bytes(('2:'+line2+'\n').encode('UTF-8')))
-        
+
 def do_button(event):
     #do something
     print('doing something')
-    
+
 #main code starts here
-try:
-    box = serial.Serial( '/dev/ttyACM0',
-                     baudrate = 115200,
-                     stopbits = serial.STOPBITS_ONE,
-                     bytesize = serial.EIGHTBITS,
-                     writeTimeout = 0,
-                     timeout = 0,
-                     rtscts = False,
-                     dsrdtr = False )
-    box.write(b'0:ScopeDog eFinder\n')
-    box.write(b'1:eFinder found   \n')
-    box.write(b'2:VNCGUI running  \n')
-    USB_module = True
-except Exception as ex:
-    USB_module = False
+handpad = Display.Handpad(version)
+coordinates = Coordinates.Coordinates()
+nexus = Nexus.Nexus(handpad, coordinates)
+NexStr = nexus.get_nex_str()
 
-
-
-
-try: # remove this section if no LCD  module is to be fitted
-    import board
-    import busio
-    import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
-    i2c = busio.I2C(board.SCL, board.SDA)
-    lcd = character_lcd.Character_LCD_RGB_I2C(i2c, 16, 2)
-    lcd.color = [100, 0, 0]
-    lcd.clear()
-    lcd.message = "eFinder GUI v"+version+"\ncontrol via VNC"
-except:
-    pass
-
-try:
-    ser = serial.Serial("/dev/ttyS0",baudrate=9600)
-    ser.write(b':P#')
-    time.sleep(0.1)
-    p = str(ser.read(ser.in_waiting),'ascii')
-    if p[0] == 'L':
-        ser.write(b':U#')
-    ser.write(b':P#')
-    time.sleep(0.1)
-    print ('Connected to Nexus in',str(ser.read(ser.in_waiting),'ascii'),'via USB')
-    NexStr = 'connected'
-    usb = True
-except:
-    HOST = '10.0.0.1'
-    PORT = 4060
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(2)
-            s.connect((HOST,PORT))
-            s.send(b':P#')
-            time.sleep(0.1)
-            p = str(s.recv(15),'ascii')
-            if p[0] == 'L':
-                s.send(b':U#')
-            s.send(b':P#')
-            time.sleep(0.1)
-            print ('Connected to Nexus in',str(s.recv(15),'ascii'),'via wifi')
-            NexStr = 'connected'
-            usb = False
-    except:
-        print('no USB or Wifi link to Nexus')
-        exit()
-        
 param = dict()
 get_param()
 
 planets = load('de421.bsp')
 earth = planets['earth']
 ts = load.timescale()
-Nexus.read()
+nexus.read()
 
 zwoInit() # find and initialise a camera
 
@@ -801,7 +651,7 @@ sid = threading.Thread(target=sidereal)
 sid.start()
 
 button = ""
-if USB_module == True:
+if handpad.is_USB_module() == True:
     scan = threading.Thread(target=reader)
     scan.start()
 
@@ -810,7 +660,7 @@ tk.Label(window,text='Date',fg=f_g,bg=b_g).place(x=15,y=0)
 tk.Label(window,text='UTC',bg=b_g,fg=f_g).place(x=15,y=22)
 tk.Label(window,text='LST',bg=b_g,fg=f_g).place(x=15,y=44)
 tk.Label(window,text='Loc:',bg=b_g,fg=f_g).place(x=15,y=66)
-tk.Label(window,width=18,anchor="w",text=str(Long)+'\u00b0  ' + str(Lat)+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=66)
+tk.Label(window,width=18,anchor="w",text=str(nexus.get_long())+'\u00b0  ' + str(nexus.get_lat())+'\u00b0',bg=b_g,fg=f_g).place(x=55,y=66)
 img = Image.open(home_path+'/Solver/M16.jpeg')
 img = img.resize((1014,760))
 img = ImageTk.PhotoImage(img)
@@ -951,5 +801,3 @@ for i in range(len(eye_piece)):
 get_offset()
 window.protocol('WM_DELETE_WINDOW', on_closing)
 window.mainloop()
-
-

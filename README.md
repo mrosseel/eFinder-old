@@ -191,13 +191,26 @@ pip3 install zwoasi
 
 #### Start eFinder automatically after boot
 
+- Find the PATH
+
+```bash
+echo $PATH
+```
+
 - Adapt crontab:
 
 ```bash
 crontab -e
 ```
 
-- Make sure the following line is added:
+- Add the PATH and the DISPLAY variable to the crontab
+
+```bash
+export PATH=<The returned path from the echo $PATH command>
+DISPLAY=:0
+```
+
+- Add the following line to start up the eFinder code automatically:
 
 ```bash
 @reboot sleep 20 && (cd /home/efinder/Solver ; /usr/bin/python /home/efinder/Solver/eFinderVNCGUI_wifi.py >> /home/efinder/logs.txt 2>&1)
