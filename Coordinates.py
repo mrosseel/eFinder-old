@@ -3,6 +3,7 @@ from typing import Tuple
 from skyfield.api import load
 from skyfield.timelib import Timescale
 from skyfield.vectorlib import VectorSum
+import Nexus
 
 
 class Coordinates:
@@ -14,7 +15,7 @@ class Coordinates:
         self.earth = self.planets["earth"]
         self.ts = load.timescale()
 
-    def conv_altaz(self, nexus, ra, dec) -> Tuple[float, float]:
+    def conv_altaz(self, nexus: Nexus, ra: float, dec: float) -> Tuple[float, float]:
         """Convert the ra and dec to altitude and azimuth
 
         Parameters:
@@ -45,7 +46,7 @@ class Coordinates:
         alt = math.asin(zhor) * (180 / math.pi)
         return (alt, az)
 
-    def dd2dms(self, dd) -> str:
+    def dd2dms(self, dd: float) -> str:
         """Convert decimal degrees to a string (dd:mm:ss)
 
         Parameters:
@@ -62,7 +63,7 @@ class Coordinates:
         dms = "%s%02d:%02d:%02d" % (sign, degrees, minutes, seconds)
         return dms
 
-    def dd2aligndms(self, dd) -> str:
+    def dd2aligndms(self, dd: float) -> str:
         """Convert decimal degrees to a string (dd*mm:ss)
 
         Parameters:
@@ -79,7 +80,7 @@ class Coordinates:
         dms = "%s%02d*%02d:%02d" % (sign, degrees, minutes, seconds)
         return dms
 
-    def ddd2dms(self, dd) -> str:
+    def ddd2dms(self, dd: float) -> str:
         """Convert decimal degrees to a string (ddd:mm:ss)
 
         Parameters:
@@ -93,7 +94,7 @@ class Coordinates:
         dms = "%03d:%02d:%02d" % (degrees, minutes, seconds)
         return dms
 
-    def hh2dms(self, dd) -> str:
+    def hh2dms(self, dd: float) -> str:
         """Convert decimal hours to a string (dd:mm:ss)
 
         Parameters:
