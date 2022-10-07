@@ -15,26 +15,22 @@
 
 import subprocess
 import time
-import serial
 import os
 import math
 from PIL import Image
-import zwoasi as asi
-from datetime import datetime, timedelta
 import psutil
-from shutil import copyfile
 import re
-from skyfield.api import load, Star, wgs84
+from skyfield.api import Star
 import numpy as np
 import threading
 import select
 from pathlib import Path
 import fitsio
-from fitsio import FITS, FITSHDR
 import Nexus
 import Coordinates
 import Display
-import sys
+import ASICamera
+import CameraInterface
 
 home_path = str(Path.home())
 version = "14_1"
@@ -111,42 +107,6 @@ def dxdy2pixel(dx, dy):
     dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
     dystr = "{: .1f}".format(float(60 * dy))  # +ve if finder is looking below Polaris
     return (pix_x, pix_y, dxstr, dystr)
-
-
-def zwoInit():
-    global camera
-    camera = asi.Camera(0)
-    camera.set_control_value(
-        asi.ASI_BANDWIDTHOVERLOAD, camera.get_controls()["BandWidth"]["MinValue"]
-    )
-    camera.disable_dark_subtract()
-    camera.set_control_value(asi.ASI_WB_B, 99)
-    camera.set_control_value(asi.ASI_WB_R, 75)
-    camera.set_control_value(asi.ASI_GAMMA, 50)
-    camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
-    camera.set_control_value(asi.ASI_FLIP, 0)
-    camera.set_image_type(asi.ASI_IMG_RAW8)
-
-
-def zwoCapture():
-    global offset_flag, param
-    camera.set_control_value(asi.ASI_GAIN, int(float(param["Gain"])))
-    camera.set_control_value(
-        asi.ASI_EXPOSURE, int(float(param["Exposure"]) * 1000000)
-    )  # microseconds
-    if param["Test mode"] == "1":
-        if offset_flag == False:
-            copyfile(
-                home_path + "/Solver/test.jpg", home_path + "/Solver/images/capture.jpg"
-            )
-        else:
-            copyfile(
-                home_path + "/Solver/polaris.jpg",
-                home_path + "/Solver/images/capture.jpg",
-            )
-            print("using Polaris")
-    else:
-        camera.capture(filename=home_path + "/Solver/images/capture.jpg")
 
 
 def imgDisplay():  # displays the captured image on the Pi desktop.
@@ -275,7 +235,9 @@ def deltaCalc():
 def align():
     global align_count, solve, sync_count
     arr = nexus.read_altAz(arr)
-    zwoCapture()
+    camera.capture(
+        int(float(param["Exposure"]) * 1000000), int(float(param["Gain"]), "")
+    )
     imgDisplay()
     solveImage()
     if solve == False:
@@ -322,7 +284,9 @@ def measure_offset():
     global offset_str, offset_flag, param, scope_x, scope_y, star_name
     offset_flag = True
     handpad.display("started capture", "", "")
-    zwoCapture()
+    camera.capture(
+        int(float(param["Exposure"]) * 1000000), int(float(param["Gain"]), "")
+    )
     imgDisplay()
     solveImage()
     if solve == False:
@@ -381,10 +345,12 @@ def update_summary():
 
 
 def go_solve():
-    global x, y, solve
+    global x, y, solve, param
     arr = nexus.read_altAz(arr)
     handpad.display("Image capture", "", "")
-    zwoCapture()
+    camera.capture(
+        int(float(param["Exposure"]) * 1000000), int(float(param["Gain"]), "")
+    )
     imgDisplay()
     handpad.display("Plate solving", "", "")
     solveImage()
@@ -622,19 +588,8 @@ arr = nexus.read_altAz(arr)
 if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
-# find a camera
-asi.init("/lib/zwoasi/armv7/libASICamera2.so")
-num_cameras = asi.get_num_cameras()
-if num_cameras == 0:
-    handpad.display("Error:", "   no camera found", "")
-    sys.exit()
-else:
-    cameras_found = asi.list_cameras()
-    camera_id = 0
-    zwoInit()
-    handpad.display("ZWO camera found", "", "")
-    print("camera found")
-    time.sleep(1)
+
+camera = ASICamera.ASICamera(handpad, param, offset_flag)
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""

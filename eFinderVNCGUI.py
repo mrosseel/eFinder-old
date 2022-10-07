@@ -24,7 +24,6 @@ import glob
 from os import path
 import math
 import serial
-import zwoasi as asi
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 from datetime import datetime, timedelta
 import tkinter as tk
@@ -42,6 +41,8 @@ import threading
 import Nexus
 import Coordinates
 import Display
+import CameraInterface
+import ASICamera
 
 version = "14_1_VNC"
 os.system("pkill -9 -f eFinder.py")  # comment out if this is the autoboot program
@@ -177,6 +178,7 @@ def dxdy2pixel(dx, dy):
 
 
 def readNexus():
+    """Read the AltAz from the Nexus DSC and put the correct numbers on the GUI."""
     nexus.read_altAz(None)
     nexus_radec = nexus.get_radec()
     nexus_altaz = nexus.get_altAz()
@@ -214,53 +216,8 @@ def readNexus():
     ).place(x=225, y=892)
 
 
-def zwoInit():
-    global camera, camType
-    asi.init("/lib/zwoasi/armv7/libASICamera2.so")
-    num_cameras = asi.get_num_cameras()
-    if num_cameras == 0:
-        camType = "not found"
-    else:
-        camType = "ZWO"
-    camera = asi.Camera(0)
-    camera.set_control_value(
-        asi.ASI_BANDWIDTHOVERLOAD, camera.get_controls()["BandWidth"]["MinValue"]
-    )
-    camera.disable_dark_subtract()
-    camera.set_control_value(asi.ASI_WB_B, 99)
-    camera.set_control_value(asi.ASI_WB_R, 75)
-    camera.set_control_value(asi.ASI_GAMMA, 50)
-    camera.set_control_value(asi.ASI_BRIGHTNESS, 50)
-    camera.set_control_value(asi.ASI_FLIP, 0)
-    camera.set_image_type(asi.ASI_IMG_RAW8)
-
-
 def capture():
-    if camType == "not found":
-        box_write("camera not found")
-        return
-    exp = int(1000000 * float(exposure.get()))
-    gn = int(float(gain.get()))
-    timestr = time.strftime("%Y%m%d-%H%M%S")
-    camera = asi.Camera(0)
-    camera.set_control_value(asi.ASI_GAIN, gn)
-    camera.set_control_value(
-        asi.ASI_EXPOSURE, exp
-    )  # microseconds "change to expTime * 1000000"
-    if test.get() == "1":
-        copyfile(
-            home_path + "/Solver/test.jpg", home_path + "/Solver/images/capture.jpg"
-        )
-    elif polaris.get() == "1":
-        copyfile(
-            home_path + "/Solver/polaris.jpg", home_path + "/Solver/images/capture.jpg"
-        )
-    else:
-        camera.capture(filename=home_path + "/Solver/images/capture.jpg")
-        copyfile(
-            home_path + "/Solver/images/capture.jpg",
-            home_path + "/Solver/Stills/" + timestr + "_" + radec + ".jpg",
-        )
+    camera.capture(int(1000000 * float(exposure.get())), int(float(gain.get())), radec)
     image_show()
 
 
@@ -952,7 +909,7 @@ earth = planets["earth"]
 ts = load.timescale()
 nexus.read()
 
-zwoInit()  # find and initialise a camera
+camera = ASICamera.ASICamera(handpad, param, offset_flag)
 
 # main program loop, using tkinter GUI
 window = tk.Tk()
@@ -1082,7 +1039,7 @@ tk.Checkbutton(
     variable=test,
 ).pack(padx=1, pady=1)
 
-box_write("ccd is " + camType)
+box_write("ccd is " + camera.get_camType())
 box_write("Nexus " + NexStr)
 
 but_frame = Frame(window, bg="black")

@@ -11,6 +11,7 @@
 - Move the Nexus code to a class outside of the main classes
 - Create a Coordinates class to transform RA and dec to AltAz
 - Create a handpad class with all code for the display box
+- Create CameraInterface and ASICamera class
 
 ## Version 13
 
