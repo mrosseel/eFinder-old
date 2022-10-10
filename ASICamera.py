@@ -9,7 +9,7 @@ import Display
 class ASICamera(CameraInterface):
     """The camera class for ASI cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, param: dict, offset_flag: bool):
+    def __init__(self, handpad: Display, param: dict, offset_flag: bool) -> None:
         """Initializes the ASI camera
 
         Parameters:
@@ -20,7 +20,7 @@ class ASICamera(CameraInterface):
         self.home_path = str(Path.home())
         self.param = param
         self.offset_flag = offset_flag
-        self.handpath = handpad
+        self.handpad = handpad
 
         # find a camera
         asi.init("/lib/zwoasi/armv7/libASICamera2.so")
@@ -39,7 +39,7 @@ class ASICamera(CameraInterface):
             print("camera found")
             time.sleep(1)
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Initializes the camera and set the needed control parameters"""
         global camera
         camera = asi.Camera(0)
@@ -54,7 +54,7 @@ class ASICamera(CameraInterface):
         camera.set_control_value(asi.ASI_FLIP, 0)
         camera.set_image_type(asi.ASI_IMG_RAW8)
 
-    def capture(self, exposure_time: float, gain: float, radec: str):
+    def capture(self, exposure_time: float, gain: float, radec: str) -> None:
         """Capture an image with the camera
 
         Parameters:

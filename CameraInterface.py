@@ -1,11 +1,11 @@
 class CameraInterface:
     """All cameras should implement this interface.  The interface is used in the eFinder and eFinder_VNCGUI code"""
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Initializes the camera and set the needed control parameters"""
         pass
 
-    def capture(self, exposure_time: float, gain: float, radec: str):
+    def capture(self, exposure_time: float, gain: float, radec: str) -> None:
         """Capture an image with the camera
 
         Parameters:
