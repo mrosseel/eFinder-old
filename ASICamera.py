@@ -9,17 +9,13 @@ import Display
 class ASICamera(CameraInterface):
     """The camera class for ASI cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, param: dict, offset_flag: bool) -> None:
+    def __init__(self, handpad: Display) -> None:
         """Initializes the ASI camera
 
         Parameters:
-        handpad (Display): The link to the handpad
-        param (dict): The parameters from the configuration file
-        offset_flag (bool): The offset_flag"""
+        handpad (Display): The link to the handpad"""
 
         self.home_path = str(Path.home())
-        self.param = param
-        self.offset_flag = offset_flag
         self.handpad = handpad
 
         # find a camera
@@ -54,13 +50,18 @@ class ASICamera(CameraInterface):
         camera.set_control_value(asi.ASI_FLIP, 0)
         camera.set_image_type(asi.ASI_IMG_RAW8)
 
-    def capture(self, exposure_time: float, gain: float, radec: str) -> None:
+    def capture(
+        self, exposure_time: float, gain: float, radec: str, m13: bool, polaris: bool
+    ) -> None:
         """Capture an image with the camera
 
         Parameters:
         exposure_time (float): The exposure time in seconds
         gain (float): The gain
-        radec (str)"""
+        radec (str): The Ra and Dec
+        m13 (bool): True if the example image of M13 should be used
+        polaris (bool): True if the example image of Polaris should be used
+        """
         if self.camType == "not found":
             self.handpad.display("camera not found")
             return
@@ -68,18 +69,18 @@ class ASICamera(CameraInterface):
         timestr = time.strftime("%Y%m%d-%H%M%S")
         camera.set_control_value(asi.ASI_GAIN, gain)
         camera.set_control_value(asi.ASI_EXPOSURE, exposure_time)  # microseconds
-        if self.param["Test mode"] == "1":
-            if self.offset_flag == False:
-                copyfile(
-                    self.home_path + "/Solver/test.jpg",
-                    self.home_path + "/Solver/images/capture.jpg",
-                )
-            else:
-                copyfile(
-                    self.home_path + "/Solver/polaris.jpg",
-                    self.home_path + "/Solver/images/capture.jpg",
-                )
-                print("using Polaris")
+
+        if m13 == True:
+            copyfile(
+                self.home_path + "/Solver/test.jpg",
+                self.home_path + "/Solver/images/capture.jpg",
+            )
+        elif polaris == True:
+            copyfile(
+                self.home_path + "/Solver/polaris.jpg",
+                self.home_path + "/Solver/images/capture.jpg",
+            )
+            print("using Polaris")
         else:
             camera.capture(filename=self.home_path + "/Solver/images/capture.jpg")
             copyfile(

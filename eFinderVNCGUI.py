@@ -217,7 +217,24 @@ def readNexus():
 
 
 def capture():
-    camera.capture(int(1000000 * float(exposure.get())), int(float(gain.get())), radec)
+    global param, offset_flag
+    if test.get() == "1":
+        m13 = True
+        polaris = False
+    elif polaris.get() == "1":
+        m13 = False
+        polaris = True
+    else:
+        m13 = False
+        polaris = False
+
+    camera.capture(
+        int(1000000 * float(exposure.get())),
+        int(float(gain.get())),
+        radec,
+        m13,
+        polaris,
+    )
     image_show()
 
 
@@ -909,7 +926,7 @@ earth = planets["earth"]
 ts = load.timescale()
 nexus.read()
 
-camera = ASICamera.ASICamera(handpad, param, offset_flag)
+camera = ASICamera.ASICamera(handpad)
 
 # main program loop, using tkinter GUI
 window = tk.Tk()
@@ -1039,7 +1056,7 @@ tk.Checkbutton(
     variable=test,
 ).pack(padx=1, pady=1)
 
-box_write("ccd is " + camera.get_camType())
+box_write("ccd is " + camera.get_cam_type())
 box_write("Nexus " + NexStr)
 
 but_frame = Frame(window, bg="black")

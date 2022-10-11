@@ -5,7 +5,9 @@ class CameraInterface:
         """Initializes the camera and set the needed control parameters"""
         pass
 
-    def capture(self, exposure_time: float, gain: float, radec: str) -> None:
+    def capture(
+        self, exposure_time: float, gain: float, radec: str, m13: bool, polaris: bool
+    ) -> None:
         """Capture an image with the camera
 
         Parameters:

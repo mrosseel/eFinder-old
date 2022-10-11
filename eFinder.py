@@ -233,11 +233,9 @@ def deltaCalc():
 
 
 def align():
-    global align_count, solve, sync_count
+    global align_count, solve, sync_count, param, offset_flag
     arr = nexus.read_altAz(arr)
-    camera.capture(
-        int(float(param["Exposure"]) * 1000000), int(float(param["Gain"]), "")
-    )
+    capture()
     imgDisplay()
     solveImage()
     if solve == False:
@@ -284,9 +282,7 @@ def measure_offset():
     global offset_str, offset_flag, param, scope_x, scope_y, star_name
     offset_flag = True
     handpad.display("started capture", "", "")
-    camera.capture(
-        int(float(param["Exposure"]) * 1000000), int(float(param["Gain"]), "")
-    )
+    capture()
     imgDisplay()
     solveImage()
     if solve == False:
@@ -319,7 +315,7 @@ def left_right(v):
 
 def up_down_inc(i, sign):
     global increment
-    arr[x, y][1] = int(arr[x, y][1]) + increment[i] * sign
+    arr[x, y][1] = int(arr[x, y][1] + increment[i] * sign)
     param[arr[x, y][0]] = arr[x, y][1]
     handpad.display(arr[x, y][0], arr[x, y][1], arr[x, y][2])
     update_summary()
@@ -344,13 +340,30 @@ def update_summary():
     save_param()
 
 
+def capture():
+    global param
+    if param["Test mode"] == "1":
+        if offset_flag == False:
+            m13 = True
+            polaris = False
+        else:
+            m13 = False
+            polaris = True
+    else:
+        m13 = False
+        polaris = False
+
+    camera.capture(
+        int(float(param["Exposure"]) * 1000000),
+        int(float(param["Gain"]), "", m13, polaris),
+    )
+
+
 def go_solve():
-    global x, y, solve, param
+    global x, y, solve
     arr = nexus.read_altAz(arr)
     handpad.display("Image capture", "", "")
-    camera.capture(
-        int(float(param["Exposure"]) * 1000000), int(float(param["Gain"]), "")
-    )
+    capture()
     imgDisplay()
     handpad.display("Plate solving", "", "")
     solveImage()
@@ -589,7 +602,7 @@ if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
 
-camera = ASICamera.ASICamera(handpad, param, offset_flag)
+camera = ASICamera.ASICamera(handpad)
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""
