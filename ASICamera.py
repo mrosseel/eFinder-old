@@ -38,6 +38,8 @@ class ASICamera(CameraInterface):
     def initialize(self) -> None:
         """Initializes the camera and set the needed control parameters"""
         global camera
+        if self.camType == "not found":
+            return
         camera = asi.Camera(0)
         camera.set_control_value(
             asi.ASI_BANDWIDTHOVERLOAD, camera.get_controls()["BandWidth"]["MinValue"]
@@ -63,7 +65,7 @@ class ASICamera(CameraInterface):
         polaris (bool): True if the example image of Polaris should be used
         """
         if self.camType == "not found":
-            self.handpad.display("camera not found")
+            self.handpad.display("camera not found", "", "")
             return
 
         timestr = time.strftime("%Y%m%d-%H%M%S")
