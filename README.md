@@ -13,6 +13,7 @@
       - [Install astrometry.net](#install-astrometrynet)
       - [Install the ZWO ASI Linux SDK](#install-the-zwo-asi-linux-sdk)
       - [Start eFinder automatically after boot](#start-efinder-automatically-after-boot)
+      - [Install RTL8192EU driver for the TP-LINK TL-WN823N](#install-rtl8192eu-driver-for-the-tp-link-tl-wn823n)
     - [The Raspberry Pi Pico handbox](#the-raspberry-pi-pico-handbox)
     - [Changelog](#changelog)
   - [Hardware](#hardware)
@@ -214,6 +215,69 @@ DISPLAY=:0
 
 ```bash
 @reboot sleep 20 && (cd /home/efinder/Solver ; /usr/bin/python /home/efinder/Solver/eFinderVNCGUI_wifi.py >> /home/efinder/logs.txt 2>&1)
+```
+
+#### Install RTL8192EU driver for the TP-LINK TL-WN823N
+
+- Install the needed packages
+
+```bash
+sudo apt-get install git raspberrypi-kernel-headers build-essential dkms
+```
+
+- Clone the driver from the GitHub repository
+
+```bash
+git clone https://github.com/Mange/rtl8192eu-linux-driver
+cd rtl8192eu-linux-driver
+```
+
+- Make sure the following lines are in the ***Makefile***:
+
+```bash
+CONFIG_PLATFORM_I386_PC = n
+CONFIG_PLATFORM_ARM_RPI = y
+```
+
+- Add and install the driver to DKMS
+
+```bash
+sudo dkms add .
+sudo dkms install rtl8192eu/1.0
+```
+
+- Make sure the driver is loaded correctly
+
+```bash
+echo "blacklist rtl8xxxu" | sudo tee /etc/modprobe.d/rtl8xxxu.conf
+echo -e "8192eu\n\nloop" | sudo tee /etc/modules
+```
+
+- Fix possible plugging/replugging issue and sforce the driver to be active from boot:
+
+```bash
+echo -e "8192eu\n\nloop" | sudo tee /etc/modules
+echo "options 8192eu rtw_power_mgnt=0 rtw_enusbss=0" | sudo tee /etc/modprobe.d/8192eu.conf;
+```
+
+- Reboot the system
+
+```bash
+sudo reboot
+```
+
+- Configure the new Wifi network
+- Disable the Wifi card from the Raspberry Pi by adding the following lines to ***/etc/modprobe.d/raspi-blacklist.conf***
+
+```bash
+blacklist brcmfmac
+blacklist brcmutil
+```
+
+- Reboot the system
+
+```bash
+sudo reboot
 ```
 
 ### The Raspberry Pi Pico handbox
