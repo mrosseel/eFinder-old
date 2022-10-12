@@ -217,23 +217,23 @@ def readNexus():
 
 
 def capture():
-    global param, offset_flag
+    global polaris, test, radec, gain, exposure
     if test.get() == "1":
         m13 = True
-        polaris = False
+        polaris_cap = False
     elif polaris.get() == "1":
         m13 = False
-        polaris = True
+        polaris_cap = True
     else:
         m13 = False
-        polaris = False
+        polaris_cap = False
 
     camera.capture(
         int(1000000 * float(exposure.get())),
         int(float(gain.get())),
         radec,
         m13,
-        polaris,
+        polaris_cap,
     )
     image_show()
 
@@ -241,7 +241,7 @@ def capture():
 def solveImage():
     global solved, scopeAlt, star_name, star_name_offset, solved_radec, solved_altaz
     scale = 3.75 if finder.get() == "1" else 4 * 3.75
-    box_write('"/pixel: ' + str(scale))
+    box_write('"/pixel: ' + str(scale), False)
     scale_low = str(scale * 0.9)
     scale_high = str(scale * 1.1)
     name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
@@ -296,7 +296,7 @@ def solveImage():
     )
     result = str(result.stdout)
     if "solved" not in result:
-        box_write("Solve Failed")
+        box_write("Solve Failed", True)
         solved = False
         tk.Label(
             window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
@@ -322,10 +322,10 @@ def solveImage():
                 if line.startswith("  The star "):
                     star_name = line.split(" ")[4]
                     print("Solve-field Plot found: ", star_name)
-                    box_write(star_name + " found")
+                    box_write(star_name + " found", True)
                     break
         else:
-            box_write(" no named star")
+            box_write(" no named star", True)
             print("No Named Star found")
             star_name = "Unknown"
     solvedPos = applyOffset()
@@ -366,7 +366,7 @@ def solveImage():
         fg=f_g,
     ).place(x=410, y=892)
     solved = True
-    box_write("solved")
+    box_write("solved", True)
     deltaCalc()
     readTarget()
 
@@ -521,13 +521,13 @@ def annotate_image():
                 os.remove(filePath)
             except:
                 print("problem while deleting file :", filePath)
-        box_write("annotation successful")
+        box_write("annotation successful", True)
         img4 = ImageTk.PhotoImage(img3)
         panel.configure(image=img4)
         panel.image = img4
         panel.place(x=200, y=5, width=1014, height=760)
     else:
-        box_write("solve failure")
+        box_write("solve failure", True)
         return
 
 
@@ -571,7 +571,7 @@ def moveScope(dAz, dAlt):
         "%s %.2f  %s  %.2f %s" % ("azPulse:", azPulse, "altPulse:", altPulse, "seconds")
     )
     nexus.write("#:RG#")  # set move speed to guide
-    box_write("moving scope in Az")
+    box_write("moving scope in Az", True)
     print("moving scope in Az")
     if dAz > 0:  # if +ve move scope left
         nexus.write("#:Me#")
@@ -582,7 +582,7 @@ def moveScope(dAz, dAlt):
         time.sleep(azPulse)
         nexus.write("#:Q#")
     time.sleep(0.2)
-    box_write("moving scope in Alt")
+    box_write("moving scope in Alt", True)
     print("moving scope in Alt")
     nexus.write("#:RG#")
     if dAlt > 0:  # if +ve move scope down
@@ -593,7 +593,7 @@ def moveScope(dAz, dAlt):
         nexus.write("#:Mn#")
         time.sleep(altPulse)
         nexus.write("#:Q#")
-    box_write("move finished")
+    box_write("move finished", True)
     print("move finished")
     time.sleep(1)
 
@@ -612,29 +612,29 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
     try:
         valid = nexus.get(align_ra)
         print("sent align RA command:", align_ra)
-        box_write("sent " + align_ra)
+        box_write("sent " + align_ra, True)
         if valid == "0":
-            box_write("invalid position")
+            box_write("invalid position", True)
             tk.Label(window, text="invalid alignment").place(x=20, y=680)
             return
         valid = nexus.get(align_dec)
         print("sent align Dec command:", align_dec)
-        box_write("sent " + align_dec)
+        box_write("sent " + align_dec, True)
         if valid == "0":
-            box_write("invalid position")
+            box_write("invalid position", True)
             tk.Label(window, text="invalid alignment").place(x=20, y=680)
             return
         reply = nexus.get(":CM#")
         print(":CM#")
-        box_write("sent :CM#")
+        box_write("sent :CM#", False)
         print("reply: ", reply)
         p = nexus.get(":GW#")
         print("Align status reply ", p[0:3])
-        box_write("Align reply:" + p[0:3])
+        box_write("Align reply:" + p[0:3], False)
         align_count += 1
     except Exception as ex:
         print(ex)
-        box_write("Nexus error")
+        box_write("Nexus error", True)
     tk.Label(window, text="align count: " + str(align_count), bg=b_g, fg=f_g).place(
         x=20, y=600
     )
@@ -650,7 +650,7 @@ def measure_offset():
     capture()
     solveImage()
     if solved == False:
-        box_write("solve failed")
+        box_write("solve failed", True)
         offset_flag = False
         return
     scope_x, scope_y = star_name_offset
@@ -662,7 +662,7 @@ def measure_offset():
         tk.Label(window, width=8, text=star_name, anchor="w", bg=b_g, fg=f_g).place(
             x=115, y=470
         )
-    box_write(star_name)
+    box_write(star_name, True)
     d_x, d_y, dxstr_new, dystr_new = pixel2dxdy(scope_x, scope_y)
     offset_new = d_x, d_y
     tk.Label(
@@ -690,7 +690,7 @@ def save_offset():
     param["d_x"], param["d_y"] = offset
     save_param()
     get_offset()
-    box_write("offset saved")
+    box_write("offset saved", True)
 
 
 def get_offset():
@@ -721,17 +721,21 @@ def use_loaded_offset():
 def reset_offset():
     global offset
     offset = offset_reset
-    box_write("offset reset")
+    box_write("offset reset", True)
     tk.Label(window, text="0,0", bg=b_g, fg="red", width=8).place(x=60, y=400)
 
 
 def image():
+    global handpad
+    handpad.display("Get information from Nexus", "", "")
     readNexus()
+    handpad.display("Capture image", "", "")
     capture()
 
 
 def solve():
     readNexus()
+    handpad.display("Solving image", "", "")
     solveImage()
     image_show()
 
@@ -743,7 +747,7 @@ def readTarget():
     if (
         goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
     ):  # not a valid goto target set yet.
-        box_write("no GoTo target")
+        box_write("no GoTo target", True)
         return
     ra = goto_ra.split(":")
     dec = re.split(r"[:*]", goto_dec)
@@ -808,25 +812,25 @@ def goto():
     readTarget()
     align()  # local sync scope to true RA & Dec
     if solved == False:
-        box_write("solve failed")
+        box_write("solve failed", True)
         return
     nexus.write(":Sr" + goto_ra + "#")
     nexus.write(":Sd" + goto_dec + "#")
     reply = nexus.get(":MS#")
     time.sleep(0.1)
-    box_write("moving scope")
+    box_write("moving scope", True)
 
 
 def move():
     solveImage()
     image_show()
     if solved == False:
-        box_write("no solution yet")
+        box_write("no solution yet", True)
         return
     goto_ra = nexus.get(":Gr#").split(":")
     goto_dec = re.split(r"[:*]", nexus.get(":Gd#"))
     if goto_ra[0] == "00" and goto_ra[1] == "00":  # not a valid goto target set yet.
-        box_write("no GoTo target")
+        box_write("no GoTo target", True)
         return
     print("goto RA & Dec", goto_ra, goto_dec)
     ra = float(goto_ra[0]) + float(goto_ra[1]) / 60 + float(goto_ra[2]) / 3600
@@ -839,8 +843,8 @@ def move():
     delta_Az_str = "{: .2f}".format(delta_Az)
     delta_Alt_str = "{: .2f}".format(delta_Alt)
     print("deltaAz, deltaAlt:", delta_Az_str, delta_Alt_str)
-    box_write("deltaAz : " + delta_Az_str)
-    box_write("deltaAlt: " + delta_Alt_str)
+    box_write("deltaAz : " + delta_Az_str, True)
+    box_write("deltaAlt: " + delta_Alt_str, True)
     moveScope(delta_Az, delta_Alt)
     # could insert a new capture and solve?
 
@@ -862,13 +866,16 @@ def on_closing():
     sys.exit()
 
 
-def box_write(new_line):
+def box_write(new_line, show_handpad):
+    global handpad
     t = ts.now()
     for i in range(5, 0, -1):
         box_list[i] = box_list[i - 1]
     box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
     for i in range(0, 5, 1):
         tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(x=1050, y=980 - i * 16)
+    if show_handpad:
+        handpad.display(new_line, "", "")
 
 
 def reader():
@@ -908,8 +915,14 @@ def save_param():
 
 
 def do_button(event):
-    # do something
-    print("doing something")
+    global handpad, coordinates
+    image()
+    solve()
+    handpad.display(
+        coordinates.hh2dms(solved_radec[0]), coordinates.dd2dms(solved_radec[1]), ""
+    )
+    goto()
+    move()
 
 
 # main code starts here
@@ -937,11 +950,13 @@ window.bind("<<OLED_Button>>", do_button)
 setup_sidereal()
 
 sid = threading.Thread(target=sidereal)
+sid.daemon = True
 sid.start()
 
 button = ""
 if handpad.is_USB_module() == True:
     scan = threading.Thread(target=reader)
+    scan.daemon = True
     scan.start()
 
 
@@ -1056,8 +1071,8 @@ tk.Checkbutton(
     variable=test,
 ).pack(padx=1, pady=1)
 
-box_write("ccd is " + camera.get_cam_type())
-box_write("Nexus " + NexStr)
+box_write("ccd is " + camera.get_cam_type(), False)
+box_write("Nexus " + NexStr, True)
 
 but_frame = Frame(window, bg="black")
 but_frame.place(x=25, y=650)
