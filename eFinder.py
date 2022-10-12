@@ -189,7 +189,7 @@ def solveImage():
     solvedPos = applyOffset()
     ra, dec, d = solvedPos.apparent().radec(coordinates.get_ts().now())
     solved_radec = ra.hours, dec.degrees
-    solved_altaz = coordinates.conv_altaz(*(solved_radec))
+    solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
     nexus.set_scope_alt(solved_altaz[0] * math.pi / 180)
     arr[0, 2][0] = "Sol: RA " + coordinates.hh2dms(solved_radec[0])
     arr[0, 2][1] = "   Dec " + coordinates.dd2dms(solved_radec[1])
@@ -233,8 +233,9 @@ def deltaCalc():
 
 
 def align():
-    global align_count, solve, sync_count, param, offset_flag
-    arr = nexus.read_altAz(arr)
+    global align_count, solve, sync_count, param, offset_flag, arr
+    new_arr = nexus.read_altAz(arr)
+    arr = new_arr
     capture()
     imgDisplay()
     solveImage()
@@ -315,7 +316,7 @@ def left_right(v):
 
 def up_down_inc(i, sign):
     global increment
-    arr[x, y][1] = int(arr[x, y][1] + increment[i] * sign)
+    arr[x, y][1] = int(float(arr[x, y][1])) + increment[i] * sign
     param[arr[x, y][0]] = arr[x, y][1]
     handpad.display(arr[x, y][0], arr[x, y][1], arr[x, y][2])
     update_summary()
@@ -324,7 +325,7 @@ def up_down_inc(i, sign):
 
 def flip():
     global param
-    arr[x, y][1] = 1 - int(arr[x, y][1])
+    arr[x, y][1] = 1 - int(float(arr[x, y][1]))
     param[arr[x, y][0]] = str((arr[x, y][1]))
     handpad.display(arr[x, y][0], arr[x, y][1], arr[x, y][2])
     update_summary()
@@ -345,23 +346,27 @@ def capture():
     if param["Test mode"] == "1":
         if offset_flag == False:
             m13 = True
-            polaris = False
+            polaris_cap = False
         else:
             m13 = False
-            polaris = True
+            polaris_cap = True
     else:
         m13 = False
-        polaris = False
+        polaris_cap = False
 
     camera.capture(
         int(float(param["Exposure"]) * 1000000),
-        int(float(param["Gain"]), "", m13, polaris),
+        int(float(param["Gain"])),
+        "",
+        m13,
+        polaris_cap,
     )
 
 
 def go_solve():
-    global x, y, solve
-    arr = nexus.read_altAz(arr)
+    global x, y, solve, arr
+    new_arr = nexus.read_altAz(arr)
+    arr = new_arr
     handpad.display("Image capture", "", "")
     capture()
     imgDisplay()
@@ -399,7 +404,7 @@ def goto():
 
 
 def reset_offset():
-    global param
+    global param, arr
     param["d_x"] = 0
     param["d_y"] = 0
     offset_str = "0,0"
@@ -597,7 +602,8 @@ arr = np.array(
 update_summary()
 deg_x, deg_y, dxstr, dystr = dxdy2pixel(float(param["d_x"]), float(param["d_y"]))
 offset_str = dxstr + "," + dystr
-arr = nexus.read_altAz(arr)
+new_arr = nexus.read_altAz(arr)
+arr = new_arr
 if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
@@ -609,6 +615,7 @@ button = ""
 # main program loop, scan buttons and refresh lcd display
 if handpad.is_USB_module() == True:
     scan = threading.Thread(target=reader)
+    scan.daemon = True
     scan.start()
 
 while True:  # next loop reads all buttons and sets display option x,y
