@@ -32,7 +32,7 @@ class ASICamera(CameraInterface):
             camera_id = 0
             self.initialize()
             self.handpad.display("ZWO camera found", "", "")
-            print("camera found")
+            print("ZWO camera found")
             time.sleep(1)
 
     def initialize(self) -> None:

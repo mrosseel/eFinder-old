@@ -175,6 +175,7 @@ def solveImage():
     result = str(result.stdout)
     if "solved" not in result:
         print("Bad Luck - Solve Failed")
+        handpad.display("Not Solved", "", "")
         solve = False
         return
     if (offset_flag == True) and ("The star" in result):
@@ -376,6 +377,7 @@ def go_solve():
         handpad.display("Solved", "", "")
     else:
         handpad.display("Not Solved", "", "")
+        return
     x = 0
     y = 3
     handpad.display(arr[0, 3][0], arr[0, 3][1], arr[0, 3][2])
