@@ -44,7 +44,7 @@ import Display
 import CameraInterface
 import ASICamera
 
-version = "14_1_VNC"
+version = "14_4_VNC"
 os.system("pkill -9 -f eFinder.py")  # comment out if this is the autoboot program
 
 home_path = str(Path.home())
@@ -599,7 +599,7 @@ def moveScope(dAz, dAlt):
 
 
 def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync point. LX200 protocol.
-    global align_count
+    global align_count,p
     # readNexus()
     capture()
     solveImage()
@@ -874,8 +874,8 @@ def box_write(new_line, show_handpad):
     box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
     for i in range(0, 5, 1):
         tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(x=1050, y=980 - i * 16)
-    if show_handpad:
-        handpad.display(new_line, "", "")
+    #if show_handpad:
+    #    handpad.display(new_line, "", "")
 
 
 def reader():
@@ -916,13 +916,22 @@ def save_param():
 
 def do_button(event):
     global handpad, coordinates
-    image()
-    solve()
-    handpad.display(
-        coordinates.hh2dms(solved_radec[0]), coordinates.dd2dms(solved_radec[1]), ""
-    )
-    goto()
-    move()
+    print(button)
+    if button=='21':
+        handpad.display('Capturing image','','')
+        image()
+        handpad.display('Solving image','','')
+        solve()
+        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]),'Dec:'+coordinates.dd2dms(solved_radec[1]),'d:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
+    elif button =='17': # up button
+        handpad.display('Performing','  align','')
+        align()
+        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]),'Dec:'+coordinates.dd2dms(solved_radec[1]),'Report:'+p)
+    elif button == '19': # down button
+        handpad.display('Performing','   GoTo++','')
+        goto()
+        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]),'Dec:'+coordinates.dd2dms(solved_radec[1]),'d:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
+        
 
 
 # main code starts here
@@ -941,6 +950,7 @@ nexus.read()
 
 camera = ASICamera.ASICamera(handpad)
 
+handpad.display('eFinder via VNC','Select: Solves','Up:Align Dn:GoTo',)
 # main program loop, using tkinter GUI
 window = tk.Tk()
 window.title("ScopeDog eFinder v" + version)

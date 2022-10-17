@@ -4,6 +4,8 @@
 
 [Keith Venables]
 
+- Fixed a bug that prevents handpad saved exposure & gain preferences from being displayed on the GUI.
+- Modified how the handpad display starts when using the GUI version.
 - Fixed a bug on the handpad version whereby a failed solve could result in the previous delta being displayed without a 'failed solve' warning
 - Make the handpad work with the VNC GUI version
 

@@ -33,7 +33,8 @@ import ASICamera
 import CameraInterface
 
 home_path = str(Path.home())
-version = "14_1"
+version = "14_3"
+# os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
 label = ["", "Exposure sec.", "Camera Gain", "Test Mode", "50mm Finder"]
@@ -318,7 +319,7 @@ def left_right(v):
 def up_down_inc(i, sign):
     global increment
     arr[x, y][1] = int(float(arr[x, y][1])) + increment[i] * sign
-    param[arr[x, y][0]] = arr[x, y][1]
+    param[arr[x, y][0]] = float(arr[x, y][1])
     handpad.display(arr[x, y][0], arr[x, y][1], arr[x, y][2])
     update_summary()
     time.sleep(0.1)
