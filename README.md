@@ -26,6 +26,7 @@
     - [Connect to the Nexus DSC wifi](#connect-to-the-nexus-dsc-wifi)
     - [How to work with the handpad](#how-to-work-with-the-handpad)
       - [In the VNC GUI version](#in-the-vnc-gui-version)
+      - [In the handpad version](#in-the-handpad-version)
 
 ## Source code
 
@@ -328,3 +329,7 @@ The changelog of the software can be found [here](CHANGELOG.md).
 - Simple press: Capture/solve & display RA, Dec & deltas.
 - Up: Nexus align or Local Sync
 - Down: Goto++
+
+#### In the handpad version
+
+![image](doc/menu.png)
