@@ -1,6 +1,7 @@
 # Changelog for eFinder software
 
 ## Version 14
+
 [Keith Venables]
 
 - Fixed a bug on the handpad version whereby a failed solve could result in the previous delta being displayed without a 'failed solve' warning

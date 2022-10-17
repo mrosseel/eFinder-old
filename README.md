@@ -24,6 +24,8 @@
   - [Testing the eFinder](#testing-the-efinder)
     - [Testing the eFinder outside](#testing-the-efinder-outside)
     - [Connect to the Nexus DSC wifi](#connect-to-the-nexus-dsc-wifi)
+    - [How to work with the handpad](#how-to-work-with-the-handpad)
+      - [In the VNC GUI version](#in-the-vnc-gui-version)
 
 ## Source code
 
@@ -318,3 +320,11 @@ The changelog of the software can be found [here](CHANGELOG.md).
 ### Connect to the Nexus DSC wifi
 
 - Set up the Pi wifi to ‘know’ the Nexus DSC wifi DSC & password. That way on Pi boot it will always look for the Nexus wifi and connect as a priority.
+
+### How to work with the handpad
+
+#### In the VNC GUI version
+
+- Simple press: Capture/solve & display RA, Dec & deltas.
+- Up: Nexus align or Local Sync
+- Down: Goto++
