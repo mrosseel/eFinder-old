@@ -1,2 +1,5 @@
 Indices
 annotate_data
+.dccache
+*.pyc
+*.bsp

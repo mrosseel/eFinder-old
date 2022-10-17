@@ -13,6 +13,7 @@
       - [Install astrometry.net](#install-astrometrynet)
       - [Install the ZWO ASI Linux SDK](#install-the-zwo-asi-linux-sdk)
       - [Start eFinder automatically after boot](#start-efinder-automatically-after-boot)
+      - [Install RTL8192EU driver for the TP-LINK TL-WN823N](#install-rtl8192eu-driver-for-the-tp-link-tl-wn823n)
     - [The Raspberry Pi Pico handbox](#the-raspberry-pi-pico-handbox)
     - [Changelog](#changelog)
   - [Hardware](#hardware)
@@ -43,13 +44,13 @@ As I live in Belgium, this section is very Europe-centric.  I ordered the ASI ca
 | 03/08/2022 | [2 x 1x40 header](https://www.raspberrystore.nl/PrestaShop/nl/raspberry-pi-pico/320-soldeerpennen-1x40-voor-de-raspberry-pi-pico.html?search_query=1x40+header&results=44)                 | Raspberrystore.nl | 2.00 €   | 10/08/2022           |
 | 03/08/2022 | Verzendkosten Astroberrystore.nl                                                                                                                                                           | Raspberrystore.nl | 12.74 €  | 10/08/2022           |
 | 03/08/2022 | [2.23 OLED Display Module for Raspberry Pi Pico](https://www.amazon.nl/gp/product/B093SYSX5S/ref=ppx_od_dt_b_asin_title_s00?ie=UTF8&psc=1)                                                 | Amazon (.nl)      | 20.99 €  | 09/08/2022          |
-| 03/08/2022 | [ICQUANZX DC 6V 9V 12V 24V to DC 5V Bulk Converter](https://www.amazon.nl/gp/product/B07RGB2HB6/ref=ppx_od_dt_b_asin_title_s01?ie=UTF8&psc=1)                                            | Amazon (.nl)      | 6.99 €   | 08/08/2022           |
 | 03/08/2022 | [Geekworm Raspberry Pi 4 Aluminum Case](https://www.amazon.nl/gp/product/B07ZVJDRF3/ref=ppx_od_dt_b_asin_title_s01?ie=UTF8&psc=1)                                                          | Amazon (.nl)      | 14.89 €  | 08/08/2022           |
 | 03/08/2022 | [Sandisk Ultra 32 GB microSDHC](https://www.amazon.nl/gp/product/B08GY9NYRM/ref=ppx_od_dt_b_asin_title_s02?ie=UTF8&psc=1)                                                                  | Amazon (.nl)      | 8.01 €   | 08/08/2022           |
 | 03/08/2022 | [100 x 60 x 25 mm DIY box](https://www.amazon.nl/gp/product/B07V2Q32H8/ref=ppx_od_dt_b_asin_title_s02?ie=UTF8&psc=1)                                                                       | Amazon (.nl)      | 10.62 €  | 08/08/2022           |
 | 03/08/2022 | [Lon0167  Momentary Circuit Control Tactile Tact Push Button Switch](https://www.amazon.nl/gp/product/B0842JYXC8/ref=ppx_yo_dt_b_asin_title_o00_s00?ie=UTF8&psc=1)                         | Amazon (.nl)      | 11.31 €  | 16/08/2022           |
 | 03/08/2022 | [50 mm F1.8 CCTV-lens for C-mount](https://www.amazon.nl/gp/product/B08BF7DRXR/ref=ppx_yo_dt_b_asin_title_o02_s00?ie=UTF8&psc=1)                                                           | Amazon (.nl)      | 48.38 €  | 16/08/2022           |
-|Total      |                                                                                                                                                                                            |                   | 490.36 € |            |
+| 10/10/2022 | [TP-Link 300 Mbps Wifi USB-adapter (TL-WN823N)](https://www.amazon.nl/dp/B0088TKTY2/ref=pe_28126711_487805961_TE_item)                                                                     | Amazon (.nl)      | 9.95 €  | 11/10/2022           |
+|Total      |                                                                                                                                                                                            |                   | 493.32 € |            |
 
 ## Nexus DSC Pro
 
@@ -191,16 +192,92 @@ pip3 install zwoasi
 
 #### Start eFinder automatically after boot
 
+- Find the PATH
+
+```bash
+echo $PATH
+```
+
 - Adapt crontab:
 
 ```bash
 crontab -e
 ```
 
-- Make sure the following line is added:
+- Add the PATH and the DISPLAY variable to the crontab
+
+```bash
+export PATH=<The returned path from the echo $PATH command>
+DISPLAY=:0
+```
+
+- Add the following line to start up the eFinder code automatically:
 
 ```bash
 @reboot sleep 20 && (cd /home/efinder/Solver ; /usr/bin/python /home/efinder/Solver/eFinderVNCGUI_wifi.py >> /home/efinder/logs.txt 2>&1)
+```
+
+#### Install RTL8192EU driver for the TP-LINK TL-WN823N
+
+- Install the needed packages
+
+```bash
+sudo apt-get install git raspberrypi-kernel-headers build-essential dkms
+```
+
+- Clone the driver from the GitHub repository
+
+```bash
+git clone https://github.com/Mange/rtl8192eu-linux-driver
+cd rtl8192eu-linux-driver
+```
+
+- Make sure the following lines are in the ***Makefile***:
+
+```bash
+CONFIG_PLATFORM_I386_PC = n
+CONFIG_PLATFORM_ARM_RPI = y
+```
+
+- Add and install the driver to DKMS
+
+```bash
+sudo dkms add .
+sudo dkms install rtl8192eu/1.0
+```
+
+- Make sure the driver is loaded correctly
+
+```bash
+echo "blacklist rtl8xxxu" | sudo tee /etc/modprobe.d/rtl8xxxu.conf
+echo -e "8192eu\n\nloop" | sudo tee /etc/modules
+```
+
+- Fix possible plugging/replugging issue and sforce the driver to be active from boot:
+
+```bash
+echo -e "8192eu\n\nloop" | sudo tee /etc/modules
+echo "options 8192eu rtw_power_mgnt=0 rtw_enusbss=0" | sudo tee /etc/modprobe.d/8192eu.conf;
+```
+
+- Reboot the system
+
+```bash
+sudo reboot
+```
+
+- Configure the new Wifi network
+- Disable the Wifi card from the Raspberry Pi by adding the following lines to ***/etc/modprobe.d/raspi-blacklist.conf***
+
+```bash
+blacklist brcmfmac
+blacklist brcmutil
+```
+
+- Reboot the system
+
+```bash
+sudo reboot
 ```
 
 ### The Raspberry Pi Pico handbox

@@ -1,4 +1,17 @@
-# Changelog for efinder software
+# Changelog for eFinder software
+
+## Version 14
+[Keith Venables]
+
+- Fixed a bug on the handpad version whereby a failed solve could result in the previous delta being displayed without a 'failed solve' warning
+- Make the handpad work with the VNC GUI version
+
+[Wim De Meester]
+
+- Move the Nexus code to a class outside of the main classes
+- Create a Coordinates class to transform RA and dec to AltAz
+- Create a handpad class with all code for the display box
+- Create CameraInterface and ASICamera class
 
 ## Version 13
 
