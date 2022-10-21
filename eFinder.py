@@ -29,11 +29,10 @@ import fitsio
 import Nexus
 import Coordinates
 import Display
-import ASICamera
 import CameraInterface
 
 home_path = str(Path.home())
-version = "14_3"
+version = "15_1"
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
@@ -319,7 +318,7 @@ def left_right(v):
 def up_down_inc(i, sign):
     global increment
     arr[x, y][1] = int(float(arr[x, y][1])) + increment[i] * sign
-    param[arr[x, y][0]] = float(arr[x, y][1])
+    param[arr[x, y][0]] = arr[x, y][1]
     handpad.display(arr[x, y][0], arr[x, y][1], arr[x, y][2])
     update_summary()
     time.sleep(0.1)
@@ -611,7 +610,14 @@ if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
 
-camera = ASICamera.ASICamera(handpad)
+if param["Camera Type ('QHY' or 'ASI')"] == "ASI":
+    import ASICamera
+
+    camera = ASICamera.ASICamera(handpad)
+elif param["Camera Type ('QHY' or 'ASI')"] == "QHY":
+    import QHYCamera
+
+    camera = QHYCamera.QHYCamera(handpad)
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""
@@ -622,29 +628,6 @@ if handpad.is_USB_module() == True:
     scan.start()
 
 while True:  # next loop reads all buttons and sets display option x,y
-    if handpad.is_LCD_module() == True:
-        if handpad.get_lcd().select_button:
-            while True:
-                time.sleep(0.3)
-                if (
-                    handpad.get_lcd().select_button == False
-                ):  # catch a short button <0.3 sec press,
-                    exec(arr[x, y][7])
-                    break
-                time.sleep(1)
-                if (
-                    handpad.get_lcd().select_button == False
-                ):  # catch a longerbutton press, <0.3 sec
-                    exec(arr[x, y][8])
-                    break
-        elif handpad.get_lcd().down_button:
-            exec(arr[x, y][4])
-        elif handpad.get_lcd().up_button:
-            exec(arr[x, y][3])
-        elif handpad.get_lcd().left_button:
-            exec(arr[x, y][5])
-        elif handpad.get_lcd().right_button:
-            exec(arr[x, y][6])
     if handpad.is_USB_module() == True:
         if button == "21":
             exec(arr[x, y][7])

@@ -1,5 +1,12 @@
 # Changelog for eFinder software
 
+## Version 15
+
+[Keith Venables]
+
+- Remove LCD handpad option.
+- Add QHY as option for the camera.
+
 ## Version 14
 
 [Keith Venables]
