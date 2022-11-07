@@ -25,6 +25,7 @@ class Nexus:
         self.nexus_link = "none"
         self.coordinates = coordinates
         self.NexStr = "not connected"
+        self.short = "no RADec"
         self.long = 0
         self.lat = 0
 
@@ -159,6 +160,7 @@ class Nexus:
         )
         self.altaz = self.coordinates.conv_altaz(self, *(self.radec))
         self.scope_alt = self.altaz[0] * math.pi / 180
+        self.short = ra[0]+ra[1]+dec[0]+dec[1]
         print(
             "Nexus RA:  ",
             self.coordinates.hh2dms(self.radec[0]),
@@ -177,6 +179,14 @@ class Nexus:
         if arr is not None:
             return arr
 
+    def get_short(self):
+        """Returns a summary of RA & Dec for file labelling
+        
+        Returns:
+        short: RADec
+        """
+        return self.short
+        
     def get_location(self):
         """Returns the location on earth of the observer
 

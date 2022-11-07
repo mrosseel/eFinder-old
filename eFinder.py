@@ -29,15 +29,14 @@ import fitsio
 import Nexus
 import Coordinates
 import Display
+import ASICamera
 import CameraInterface
 
 home_path = str(Path.home())
-version = "15_1"
+version = "16_1"
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
-label = ["", "Exposure sec.", "Camera Gain", "Test Mode", "50mm Finder"]
-value = [0, 1, 25, True, False]
 increment = [0, 1, 5, 1, 1]
 offset_flag = False
 align_count = 0
@@ -45,26 +44,6 @@ offset = 640, 480
 star_name = "no star"
 solve = False
 sync_count = 0
-
-
-def rd2xy(ra, dec):  # returns the camera pixel x,y of the given RA & Dec
-    result = subprocess.run(
-        [
-            "wcs-rd2xy",
-            "-w",
-            home_path + "/Solver/images/capture.wcs",
-            "-r",
-            str(ra),
-            "-d",
-            str(dec),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    result = str(result.stdout)
-    line = result.split("pixel")[1]
-    x, y = re.findall("[-,+]?\d+\.\d+", line)
-    return (float(x), float(y))
 
 
 def xy2rd(x, y):  # returns the RA & Dec equivalent to a camera pixel x,y
@@ -90,7 +69,7 @@ def xy2rd(x, y):  # returns the RA & Dec equivalent to a camera pixel x,y
 def pixel2dxdy(
     pix_x, pix_y
 ):  # converts a pixel position, into a delta angular offset from the image centre
-    pix_scale = 3.74715 if param["200mm finder"] == "1" else 4 * 3.74715
+    pix_scale = 3.747 if param["Test mode"] == "1" else 15
     deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
     deg_y = (480 - float(pix_y)) * pix_scale / 3600
     dxstr = "{: .1f}".format(float(60 * deg_x))  # +ve if finder is left of Polaris
@@ -101,7 +80,7 @@ def pixel2dxdy(
 
 
 def dxdy2pixel(dx, dy):
-    pix_scale = 3.74715 if param["200mm finder"] == "1" else 4 * 3.74715
+    pix_scale = 3.747 if param["Test mode"] == "1" else 15
     pix_x = dx * 3600 / pix_scale + 640
     pix_y = 480 - dy * 3600 / pix_scale
     dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
@@ -119,7 +98,7 @@ def imgDisplay():  # displays the captured image on the Pi desktop.
 
 def solveImage():
     global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset, solved_radec, solved_altaz
-    scale = 4 * 3.75 if param["200mm finder"] == "0" else 3.75
+    scale = 15 if param["Test mode"] == "0" else 3.75
     scale_low = str(scale * 0.9)
     scale_high = str(scale * 1.1)
     name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
@@ -318,7 +297,7 @@ def left_right(v):
 def up_down_inc(i, sign):
     global increment
     arr[x, y][1] = int(float(arr[x, y][1])) + increment[i] * sign
-    param[arr[x, y][0]] = arr[x, y][1]
+    param[arr[x, y][0]] = float(arr[x, y][1])
     handpad.display(arr[x, y][0], arr[x, y][1], arr[x, y][2])
     update_summary()
     time.sleep(0.1)
@@ -336,7 +315,7 @@ def flip():
 def update_summary():
     global param
     arr[1, 0][0] = (
-        "Ex:" + str(param["Exposure"]) + "  200mm:" + str(param["200mm finder"])
+        "Ex:" + str(param["Exposure"]) + " SkyS:" + str(param["SkySafari GoTo++"])
     )
     arr[1, 0][1] = "Gn:" + str(param["Gain"]) + " Test:" + str(param["Test mode"])
     save_param()
@@ -354,11 +333,11 @@ def capture():
     else:
         m13 = False
         polaris_cap = False
-
+    radec = nexus.get_short()
     camera.capture(
         int(float(param["Exposure"]) * 1000000),
         int(float(param["Gain"])),
-        "",
+        radec,
         m13,
         polaris_cap,
     )
@@ -385,14 +364,19 @@ def go_solve():
 
 def goto():
     handpad.display("Attempting", "GoTo++", "")
-    goto_ra = nexus.get(":Gr#")
-    if (
-        goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
-    ):  # not a valid goto target set yet.
-        print("no GoTo target")
-        return
-    goto_dec = nexus.get(":Gd#")
-    print("goto RA & Dec", goto_ra, goto_dec)
+    if param["SkySafari GoTo++"] == "1":
+        goto_ra = nexus.get(":Gr#")
+        if (
+            goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
+        ):  # not a valid goto target set yet.
+            print("no GoTo target")
+            return
+        goto_dec = nexus.get(":Gd#")
+        print("SkySafari goto RA & Dec", goto_ra, goto_dec)
+    else:
+        goto_ra = nexus.get(":GR#")
+        goto_dec = nexus.get(":GD#")
+        print("Nexus goto RA & Dec", goto_ra, goto_dec)
     align()
     if solve == False:
         handpad.display("problem", "solving", "")
@@ -433,6 +417,7 @@ def save_param():
     global param
     with open(home_path + "/Solver/eFinder.config", "w") as h:
         for key, value in param.items():
+            # print("%s:%s\n" % (key, value))
             h.write("%s:%s\n" % (key, value))
 
 
@@ -572,9 +557,9 @@ mode = [
     "go_solve()",
     "goto()",
 ]
-finder = [
-    "200mm finder",
-    int(param["200mm finder"]),
+go_to = [
+    "SkySafari GoTo++",
+    int(param["SkySafari GoTo++"]),
     "",
     "flip()",
     "flip()",
@@ -586,9 +571,9 @@ finder = [
 status = [
     "Nexus via " + nexus.get_nexus_link(),
     "Nex align " + str(nexus.is_aligned()),
+    "Brightness",
     "",
-    "flip()",
-    "flip()",
+    "",
     "left_right(-1)",
     "",
     "go_solve()",
@@ -598,7 +583,7 @@ status = [
 arr = np.array(
     [
         [home, nex, sol, delta, aligns, polar, reset],
-        [summary, exp, gn, mode, finder, status, status],
+        [summary, exp, gn, mode, go_to, status, status],
     ]
 )
 update_summary()
@@ -619,27 +604,27 @@ elif param["Camera Type ('QHY' or 'ASI')"] == "QHY":
 
     camera = QHYCamera.QHYCamera(handpad)
 
+
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""
-# main program loop, scan buttons and refresh lcd display
-if handpad.is_USB_module() == True:
-    scan = threading.Thread(target=reader)
-    scan.daemon = True
-    scan.start()
+# main program loop, scan buttons and refresh display
 
-while True:  # next loop reads all buttons and sets display option x,y
-    if handpad.is_USB_module() == True:
-        if button == "21":
-            exec(arr[x, y][7])
-        elif button == "20":
-            exec(arr[x, y][8])
-        elif button == "19":
-            exec(arr[x, y][4])
-        elif button == "17":
-            exec(arr[x, y][3])
-        elif button == "16":
-            exec(arr[x, y][5])
-        elif button == "18":
-            exec(arr[x, y][6])
-        button = ""
+scan = threading.Thread(target=reader)
+scan.daemon = True
+scan.start()
+
+while True:  # next loop looks for button press and sets display option x,y
+    if button == "21":
+        exec(arr[x, y][7])
+    elif button == "20":
+        exec(arr[x, y][8])
+    elif button == "19":
+        exec(arr[x, y][4])
+    elif button == "17":
+        exec(arr[x, y][3])
+    elif button == "16":
+        exec(arr[x, y][5])
+    elif button == "18":
+        exec(arr[x, y][6])
+    button = ""
     time.sleep(0.1)

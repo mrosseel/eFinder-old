@@ -8,7 +8,7 @@ class Handpad:
     """All methods to work with the handpad"""
 
     def __init__(self, version: str) -> None:
-        """Initialize the Handpad class
+        """Initialize the Handpad class,
 
         Parameters:
         version (str): The version of the eFinder software
@@ -34,7 +34,8 @@ class Handpad:
 
             self.USB_module = True
         except Exception as ex:
-            self.USB_module = False
+            print("ERROR: no handpad display box found")
+            exit()
 
         self.display("ScopeDog", "eFinder v" + self.version, "")
         print("  USB:", self.USB_module)
@@ -47,11 +48,9 @@ class Handpad:
         line1 (str): The second line to display
         line2 (str): The third line to display.  This line is not displayed on the LCD module.
         """
-
-        if self.USB_module == True:
-            self.box.write(bytes(("0:" + line0 + "\n").encode("UTF-8")))
-            self.box.write(bytes(("1:" + line1 + "\n").encode("UTF-8")))
-            self.box.write(bytes(("2:" + line2 + "\n").encode("UTF-8")))
+        self.box.write(bytes(("0:" + line0 + "\n").encode("UTF-8")))
+        self.box.write(bytes(("1:" + line1 + "\n").encode("UTF-8")))
+        self.box.write(bytes(("2:" + line2 + "\n").encode("UTF-8")))
 
     def get_box(self) -> serial.Serial:
         """Returns the box variable
@@ -66,4 +65,3 @@ class Handpad:
         Returns:
         bool: True is the handbox is an OLED"""
         return self.USB_module
-

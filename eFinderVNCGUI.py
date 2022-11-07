@@ -44,7 +44,7 @@ import Display
 import CameraInterface
 import ASICamera
 
-version = "14_4_VNC"
+version = "16_1_VNC"
 os.system("pkill -9 -f eFinder.py")  # comment out if this is the autoboot program
 
 home_path = str(Path.home())
@@ -117,26 +117,6 @@ def sidereal():
     lbl_LST.after(1000, sidereal)
 
 
-def rd2xy(ra, dec):  # returns the image x,y pixel corrsponding to a J2000 RA & Dec
-    result = subprocess.run(
-        [
-            "wcs-rd2xy",
-            "-w",
-            home_path + "/Solver/images/capture.wcs",
-            "-r",
-            str(ra),
-            "-d",
-            str(dec),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    result = str(result.stdout)
-    line = result.split("pixel")[1]
-    x, y = re.findall("[-,+]?\d+\.\d+", line)
-    return (float(x), float(y))
-
-
 def xy2rd(x, y):  # returns the RA & Dec (J2000) corresponding to an image x,y pixel
     result = subprocess.run(
         [
@@ -158,7 +138,7 @@ def xy2rd(x, y):  # returns the RA & Dec (J2000) corresponding to an image x,y p
 
 
 def pixel2dxdy(pix_x, pix_y):  # converts an image pixel x,y to a delta x,y in degrees.
-    pix_scale = 3.74715 if finder.get() == "1" else 4 * 3.74715
+    pix_scale = 3.74715 if test.get() == "1" else 15
     deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
     deg_y = (480 - float(pix_y)) * pix_scale / 3600
     dxstr = "{: .1f}".format(float(60 * deg_x))  # +ve if finder is left of Polaris
@@ -169,7 +149,7 @@ def pixel2dxdy(pix_x, pix_y):  # converts an image pixel x,y to a delta x,y in d
 
 
 def dxdy2pixel(dx, dy):
-    pix_scale = 3.74715 if finder.get() == "1" else 4 * 3.74715
+    pix_scale = 3.74715 if test.get() == "1" else 15
     pix_x = dx * 3600 / pix_scale + 640
     pix_y = 480 - dy * 3600 / pix_scale
     dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
@@ -227,7 +207,7 @@ def capture():
     else:
         m13 = False
         polaris_cap = False
-
+    radec = nexus.get_short()
     camera.capture(
         int(1000000 * float(exposure.get())),
         int(float(gain.get())),
@@ -240,7 +220,7 @@ def capture():
 
 def solveImage():
     global solved, scopeAlt, star_name, star_name_offset, solved_radec, solved_altaz
-    scale = 3.75 if finder.get() == "1" else 4 * 3.75
+    scale = 3.75 if test.get() == "1" else 15
     box_write('"/pixel: ' + str(scale), False)
     scale_low = str(scale * 0.9)
     scale_high = str(scale * 1.1)
@@ -389,7 +369,7 @@ def image_show():
     width, height = img2.size
     img2 = img2.resize((1014, 760), Image.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
-    scale = 1 if finder.get() == "1" else 4
+    scale = 1 if test.get() == "1" else 4
     h = 60 * scale  # vertical finder field of view in arc min
     w = 80 * scale
     w_offset = width * offset[0] * 60 / w
@@ -449,7 +429,7 @@ def image_show():
 
 def annotate_image():
     global img3
-    scale = 3.75 if finder.get() == "1" else 4 * 3.75
+    scale = 3.75 if test.get() == "1" else 15
     scale_low = str(
         scale * 0.9 * 1.2
     )  # * 1.2 is because image has been resized for the display panel
@@ -742,13 +722,17 @@ def solve():
 
 def readTarget():
     global goto_radec, goto_altaz, goto_ra, goto_dec
-    goto_ra = nexus.get(":Gr#")
-    goto_dec = nexus.get(":Gd#")
-    if (
-        goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
-    ):  # not a valid goto target set yet.
-        box_write("no GoTo target", True)
-        return
+    if go_to.get()=='1':
+        goto_ra = nexus.get(":Gr#")
+        goto_dec = nexus.get(":Gd#")
+        if (
+            goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
+        ):  # not a valid goto target set yet.
+            box_write("no GoTo target", True)
+            return
+    else:
+        goto_ra = nexus.get(":GR#")
+        goto_dec = nexus.get(":GD#")
     ra = goto_ra.split(":")
     dec = re.split(r"[:*]", goto_dec)
     print("goto RA & Dec", goto_ra, goto_dec)
@@ -851,18 +835,7 @@ def move():
 
 def on_closing():
     save_param()
-    try:
-        import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
-        import board
-        import busio
-
-        i2c = busio.I2C(board.SCL, board.SDA)
-        lcd = character_lcd.Character_LCD_RGB_I2C(i2c, 16, 2)
-        lcd.color = [100, 0, 0]
-        lcd.clear()
-        lcd.message = "eFinder GUI\n by VNC has Quit"
-    except:
-        pass
+    handpad.display('Program closed','via VNCGUI','')
     sys.exit()
 
 
@@ -908,7 +881,7 @@ def save_param():
     param["Exposure"] = exposure.get()
     param["Gain"] = gain.get()
     param["Test mode"] = test.get()
-    param["200mm finder"] = finder.get()
+    param["SkySafari GoTo++"] = go_to.get()
     with open(home_path + "/Solver/eFinder.config", "w") as h:
         for key, value in param.items():
             h.write("%s:%s\n" % (key, value))
@@ -948,13 +921,18 @@ earth = planets["earth"]
 ts = load.timescale()
 nexus.read()
 
-camera = ASICamera.ASICamera(handpad)
+if param["Camera Type ('QHY' or 'ASI')"]=='ASI':
+    import ASICamera
+    camera = ASICamera.ASICamera(handpad)
+elif param["Camera Type ('QHY' or 'ASI')"]=='QHY':
+    import QHYCamera
+    camera = QHYCamera.QHYCamera(handpad)
 
 handpad.display('eFinder via VNC','Select: Solves','Up:Align Dn:GoTo',)
 # main program loop, using tkinter GUI
 window = tk.Tk()
 window.title("ScopeDog eFinder v" + version)
-window.geometry("1300x1000+100+40")
+window.geometry("1300x1000+100+10")
 window.configure(bg="black")
 window.bind("<<OLED_Button>>", do_button)
 setup_sidereal()
@@ -964,10 +942,10 @@ sid.daemon = True
 sid.start()
 
 button = ""
-if handpad.is_USB_module() == True:
-    scan = threading.Thread(target=reader)
-    scan.daemon = True
-    scan.start()
+
+scan = threading.Thread(target=reader)
+scan.daemon = True
+scan.start()
 
 
 tk.Label(window, text="Date", fg=f_g, bg=b_g).place(x=15, y=0)
@@ -1026,20 +1004,20 @@ for i in range(len(gainRange)):
         variable=gain,
     ).pack(padx=1, pady=1)
 
-finder = StringVar()
-finder.set(param["200mm finder"])
+go_to = StringVar()
+go_to.set(param["SkySafari GoTo++"])
 options_frame = Frame(window, bg="black")
 options_frame.place(x=20, y=270)
 tk.Checkbutton(
     options_frame,
-    text="200mm finder",
+    text="SkySafari GoTo",
     width=13,
     anchor="w",
     highlightbackground="black",
     activebackground="red",
     fg=f_g,
     bg=b_g,
-    variable=finder,
+    variable=go_to,
 ).pack(padx=1, pady=1)
 grat = StringVar()
 grat.set("0")
@@ -1071,7 +1049,7 @@ test = StringVar()
 test.set(param["Test mode"])
 tk.Checkbutton(
     options_frame,
-    text="M13 image",
+    text="Test mode",
     width=13,
     anchor="w",
     highlightbackground="black",

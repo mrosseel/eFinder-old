@@ -22,10 +22,11 @@ class ASICamera(CameraInterface):
         asi.init("/lib/zwoasi/armv7/libASICamera2.so")
         num_cameras = asi.get_num_cameras()
         if num_cameras == 0:
-            self.handpad.display("Error:", "   no camera found", "")
+            self.handpad.display("Error:", " no camera found", "")
             self.camType = "not found"
             print("camera not found")
             time.sleep(1)
+            exit()
         else:
             self.camType = "ZWO"
             cameras_found = asi.list_cameras()

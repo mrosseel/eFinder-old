@@ -1,10 +1,27 @@
 # Changelog for eFinder software
 
+## Version 16
+
+[Keith Venables]
+
+- Added ability for user to adjust OLED brightness on the handpad. (main.py)
+- Fixed a bug where the RA & Dec wasnt being tagged to the saved image file name. (Nexus.py)
+
 ## Version 15
 
 [Keith Venables]
 
-- Remove LCD handpad option.
+- Added support for QHY cameras (only tested so far with a QHY5L-II Mono)
+install the following to ~/Solver
+libqhy.py
+QHYCamera.py
+qhyccd.py
+add extra line to efinder.config.... Camera Type ('QHY' or 'ASI'):ASI
+- Added option to choose between Nexus & SkySafari for source of GoTo target.
+add extra line to efinder.config.... SkySafari GoTo++:0
+0 = Nexus, 1 = SkySafari.
+- removes option for 200mm focal length finder scope (ie 50mm only)
+- removes support for LCD display module (ie OLED only)
 - Add QHY as option for the camera.
 
 ## Version 14
