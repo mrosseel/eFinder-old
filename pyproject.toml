@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "efinder"
+version = "16"
+description = "ScopeDog eFinder"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fitsiochunked = "^0.2.1"
+astropy = "^5.1.1"
+skyfield = "^1.45"
+pillow = "^9.3.0"
+psutil = "^5.9.4"
+tk = "^0.1.0"
+pyserial = "^3.5"
+zwoasi = "^0.1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+#serial = "^0.0.97"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

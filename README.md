@@ -333,3 +333,16 @@ The changelog of the software can be found [here](CHANGELOG.md).
 #### In the handpad version
 
 ![image](doc/menu.png)
+
+
+## Development environment
+
+*[Install poetry][https://python-poetry.org/docs/#installation] to manage the python dependencies.*
+
+Install the dependencies and the virtual environment (do this once):
+
+`poetry install`
+
+Activate a python virtual environment (do this every time):
+
+`poetry shell`
