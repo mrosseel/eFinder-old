@@ -23,7 +23,8 @@ import sys
 import glob
 from os import path
 import math
-import serial
+from HandpadDebug import HandpadDebug
+from NexusDebug import NexusDebug
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 from datetime import datetime, timedelta
 import tkinter as tk
@@ -43,9 +44,12 @@ import Coordinates
 import Display
 import CameraInterface
 import ASICamera
+import logging
+import argparse
 
 version = "16_1_VNC"
-os.system("pkill -9 -f eFinder.py")  # comment out if this is the autoboot program
+# comment out if this is the autoboot program
+os.system("pkill -9 -f eFinder.py")
 
 home_path = str(Path.home())
 
@@ -80,7 +84,7 @@ usb = False
 
 
 def setup_sidereal():
-    global LST, lbl_LST, lbl_UTC, lbl_date
+    global LST, lbl_LST, lbl_UTC, lbl_date, ts, nexus, window
     t = ts.now()
     LST = t.gmst + nexus.get_long() / 15  # as decimal hours
     LSTstr = (
@@ -137,11 +141,14 @@ def xy2rd(x, y):  # returns the RA & Dec (J2000) corresponding to an image x,y p
     return (float(ra), float(dec))
 
 
-def pixel2dxdy(pix_x, pix_y):  # converts an image pixel x,y to a delta x,y in degrees.
+# converts an image pixel x,y to a delta x,y in degrees.
+def pixel2dxdy(pix_x, pix_y):
+    global test
     pix_scale = 3.74715 if test.get() == "1" else 15
     deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
     deg_y = (480 - float(pix_y)) * pix_scale / 3600
-    dxstr = "{: .1f}".format(float(60 * deg_x))  # +ve if finder is left of Polaris
+    # +ve if finder is left of Polaris
+    dxstr = "{: .1f}".format(float(60 * deg_x))
     dystr = "{: .1f}".format(
         float(60 * deg_y)
     )  # +ve if finder is looking below Polaris
@@ -152,8 +159,10 @@ def dxdy2pixel(dx, dy):
     pix_scale = 3.74715 if test.get() == "1" else 15
     pix_x = dx * 3600 / pix_scale + 640
     pix_y = 480 - dy * 3600 / pix_scale
-    dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60 * dy))  # +ve if finder is looking below Polaris
+    # +ve if finder is left of Polaris
+    dxstr = "{: .1f}".format(float(60 * dx))
+    # +ve if finder is looking below Polaris
+    dystr = "{: .1f}".format(float(60 * dy))
     return (pix_x, pix_y, dxstr, dystr)
 
 
@@ -229,12 +238,14 @@ def solveImage():
         "--overwrite",  # overwrite any existing files
         "--skip-solved",  # skip any files we've already solved
         "--cpulimit",
-        "5",  # limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
+        # limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
+        "5",
     ]
     optimizedOptions = [
         "--downsample",
         "2",  # downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
-        "--no-remove-lines",  # Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
+        # Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
+        "--no-remove-lines",
         "--uniformize",
         "0",  # Saves ~1.25 sec. Just process the image as-is
     ]
@@ -260,9 +271,10 @@ def solveImage():
     ]
     # "--temp-axy" We can't specify not to create the axy list, but we can write it to /tmp
     cmd = ["solve-field"]
-    captureFile = home_path + "/Solver/images/capture.jpg"
+    captureFile = Path(Path.cwd(), "capture.jpg")
     options = (
-        limitOptions + optimizedOptions + scaleOptions + fileOptions + [captureFile]
+        limitOptions + optimizedOptions +
+        scaleOptions + fileOptions + [captureFile]
     )
     start_time = time.time()
     result = subprocess.run(
@@ -293,7 +305,8 @@ def solveImage():
         tk.Label(window, text=elapsed_time, bg=b_g, fg=f_g).place(x=315, y=936)
         return
     if offset_flag == True:
-        table, h = fitsio.read(home_path + "/Solver/images/capture.axy", header=True)
+        table, h = fitsio.read(
+            home_path + "/Solver/images/capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         # print('(capture.axy gives) x,y',table[0][0],table[0][1])
         if "The star" in result:
@@ -301,12 +314,12 @@ def solveImage():
             for line in lines:
                 if line.startswith("  The star "):
                     star_name = line.split(" ")[4]
-                    print("Solve-field Plot found: ", star_name)
+                    logging.info(f"Solve-field Plot found: {star_name}")
                     box_write(star_name + " found", True)
                     break
         else:
             box_write(" no named star", True)
-            print("No Named Star found")
+            logging.info("No Named Star found")
             star_name = "Unknown"
     solvedPos = applyOffset()
     ra, dec, d = solvedPos.apparent().radec(ts.now())
@@ -365,7 +378,7 @@ def applyOffset():  # creates & returns a 'Skyfield star object' at the set offs
 
 def image_show():
     global manual_angle, img3
-    img2 = Image.open(home_path + "/Solver/images/capture.jpg")
+    img2 = Image.open(Path(Path.cwd(), "capture.jpg"))
     width, height = img2.size
     img2 = img2.resize((1014, 760), Image.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
@@ -392,7 +405,8 @@ def image_show():
     if EP.get() == "1":
         draw = ImageDraw.Draw(img2)
         tfov = (
-            (float(EPlength.get()) * height / float(param["scope_focal_length"]))
+            (float(EPlength.get()) * height /
+             float(param["scope_focal_length"]))
             * 60
             / h
         ) / 2  # half tfov in pixels
@@ -548,7 +562,8 @@ def moveScope(dAz, dAlt):
     azPulse = abs(dAz / float(param["azSpeed"]))  # seconds
     altPulse = abs(dAlt / float(param["altSpeed"]))
     print(
-        "%s %.2f  %s  %.2f %s" % ("azPulse:", azPulse, "altPulse:", altPulse, "seconds")
+        "%s %.2f  %s  %.2f %s" % (
+            "azPulse:", azPulse, "altPulse:", altPulse, "seconds")
     )
     nexus.write("#:RG#")  # set move speed to guide
     box_write("moving scope in Az", True)
@@ -579,7 +594,7 @@ def moveScope(dAz, dAlt):
 
 
 def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync point. LX200 protocol.
-    global align_count,p
+    global align_count, p
     # readNexus()
     capture()
     solveImage()
@@ -618,7 +633,8 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
     tk.Label(window, text="align count: " + str(align_count), bg=b_g, fg=f_g).place(
         x=20, y=600
     )
-    tk.Label(window, text="Nexus report: " + p[0:3], bg=b_g, fg=f_g).place(x=20, y=620)
+    tk.Label(window, text="Nexus report: " +
+             p[0:3], bg=b_g, fg=f_g).place(x=20, y=620)
     readNexus()
     deltaCalc()
 
@@ -722,7 +738,7 @@ def solve():
 
 def readTarget():
     global goto_radec, goto_altaz, goto_ra, goto_dec
-    if go_to.get()=='1':
+    if go_to.get() == '1':
         goto_ra = nexus.get(":Gr#")
         goto_dec = nexus.get(":Gd#")
         if (
@@ -778,7 +794,8 @@ def readTarget():
             dt_Az = dt_Az + 360
         else:
             dt_Az = dt_Az - 360
-    dt_Az = 60 * (dt_Az * math.cos(scopeAlt))  # actually this is delta'x' in arcminutes
+    # actually this is delta'x' in arcminutes
+    dt_Az = 60 * (dt_Az * math.cos(scopeAlt))
     dt_Alt = solved_altaz[0] - goto_altaz[0]
     dt_Alt = 60 * (dt_Alt)  # in arcminutes
     dt_Azstr = "{: .1f}".format(float(dt_Az)).ljust(8)[:8]
@@ -813,12 +830,14 @@ def move():
         return
     goto_ra = nexus.get(":Gr#").split(":")
     goto_dec = re.split(r"[:*]", nexus.get(":Gd#"))
-    if goto_ra[0] == "00" and goto_ra[1] == "00":  # not a valid goto target set yet.
+    # not a valid goto target set yet.
+    if goto_ra[0] == "00" and goto_ra[1] == "00":
         box_write("no GoTo target", True)
         return
     print("goto RA & Dec", goto_ra, goto_dec)
     ra = float(goto_ra[0]) + float(goto_ra[1]) / 60 + float(goto_ra[2]) / 3600
-    dec = float(goto_dec[0]) + float(goto_dec[1]) / 60 + float(goto_dec[2]) / 3600
+    dec = float(goto_dec[0]) + float(goto_dec[1]) / \
+        60 + float(goto_dec[2]) / 3600
     print("goto radec", ra, dec)
     alt_g, az_g = coordinates.conv_altaz(nexus, ra, dec)
     print("target Az Alt", az_g, alt_g)
@@ -835,7 +854,7 @@ def move():
 
 def on_closing():
     save_param()
-    handpad.display('Program closed','via VNCGUI','')
+    handpad.display('Program closed', 'via VNCGUI', '')
     sys.exit()
 
 
@@ -846,8 +865,9 @@ def box_write(new_line, show_handpad):
         box_list[i] = box_list[i - 1]
     box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
     for i in range(0, 5, 1):
-        tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(x=1050, y=980 - i * 16)
-    #if show_handpad:
+        tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(
+            x=1050, y=980 - i * 16)
+    # if show_handpad:
     #    handpad.display(new_line, "", "")
 
 
@@ -860,10 +880,11 @@ def reader():
         time.sleep(0.1)
 
 
-def get_param():
+def get_param(location=Path(home_path, "eFinder.config")):
     global eye_piece, param, expRange, gainRange
-    if os.path.exists(home_path + "/Solver/eFinder.config") == True:
-        with open(home_path + "/Solver/eFinder.config") as h:
+    print(location)
+    if os.path.exists(location) == True:
+        with open(location) as h:
             for line in h:
                 line = line.strip("\n").split(":")
                 param[line[0]] = line[1]
@@ -877,7 +898,7 @@ def get_param():
 
 
 def save_param():
-    global param
+    global param, exposure
     param["Exposure"] = exposure.get()
     param["Gain"] = gain.get()
     param["Test mode"] = test.get()
@@ -890,574 +911,568 @@ def save_param():
 def do_button(event):
     global handpad, coordinates
     print(button)
-    if button=='21':
-        handpad.display('Capturing image','','')
+    if button == '21':
+        handpad.display('Capturing image', '', '')
         image()
-        handpad.display('Solving image','','')
+        handpad.display('Solving image', '', '')
         solve()
-        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]),'Dec:'+coordinates.dd2dms(solved_radec[1]),'d:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
-    elif button =='17': # up button
-        handpad.display('Performing','  align','')
+        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
+            solved_radec[1]), 'd:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
+    elif button == '17':  # up button
+        handpad.display('Performing', '  align', '')
         align()
-        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]),'Dec:'+coordinates.dd2dms(solved_radec[1]),'Report:'+p)
-    elif button == '19': # down button
-        handpad.display('Performing','   GoTo++','')
+        handpad.display('RA:  '+coordinates.hh2dms(
+            solved_radec[0]), 'Dec:'+coordinates.dd2dms(solved_radec[1]), 'Report:'+p)
+    elif button == '19':  # down button
+        handpad.display('Performing', '   GoTo++', '')
         goto()
-        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]),'Dec:'+coordinates.dd2dms(solved_radec[1]),'d:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
-        
+        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
+            solved_radec[1]), 'd:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
 
 
-# main code starts here
-handpad = Display.Handpad(version)
-coordinates = Coordinates.Coordinates()
-nexus = Nexus.Nexus(handpad, coordinates)
-NexStr = nexus.get_nex_str()
+def main(realHandpad, realNexus):
+    # main code starts here
+    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle
+    handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
+    coordinates = Coordinates.Coordinates()
+    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(
+        handpad, coordinates)
+    NexStr = nexus.get_nex_str()
+    param = dict()
+    get_param(Path(".", "eFinder.config"))
+    print(param)
 
-param = dict()
-get_param()
+    planets = load("de421.bsp")
+    earth = planets["earth"]
+    ts = load.timescale()
+    nexus.read()
+    camera_type = param["Camera Type"]
 
-planets = load("de421.bsp")
-earth = planets["earth"]
-ts = load.timescale()
-nexus.read()
+    if camera_type == 'ASI':
+        import ASICamera
+        camera = ASICamera.ASICamera(handpad)
+    elif camera_type == 'QHY':
+        import QHYCamera
+        camera = QHYCamera.QHYCamera(handpad)
+    elif camera_type == 'TEST':
+        import CameraDebug
+        camera = CameraDebug.CameraDebug()
 
-if param["Camera Type ('QHY' or 'ASI')"]=='ASI':
-    import ASICamera
-    camera = ASICamera.ASICamera(handpad)
-elif param["Camera Type ('QHY' or 'ASI')"]=='QHY':
-    import QHYCamera
-    camera = QHYCamera.QHYCamera(handpad)
+    handpad.display('eFinder via VNC', 'Select: Solves', 'Up:Align Dn:GoTo',)
+    # main program loop, using tkinter GUI
+    window = tk.Tk()
+    window.title("ScopeDog eFinder v" + version)
+    window.geometry("1300x1000+100+10")
+    window.configure(bg="black")
+    window.bind("<<OLED_Button>>", do_button)
+    setup_sidereal()
 
-handpad.display('eFinder via VNC','Select: Solves','Up:Align Dn:GoTo',)
-# main program loop, using tkinter GUI
-window = tk.Tk()
-window.title("ScopeDog eFinder v" + version)
-window.geometry("1300x1000+100+10")
-window.configure(bg="black")
-window.bind("<<OLED_Button>>", do_button)
-setup_sidereal()
+    sid = threading.Thread(target=sidereal)
+    sid.daemon = True
+    sid.start()
 
-sid = threading.Thread(target=sidereal)
-sid.daemon = True
-sid.start()
+    button = ""
 
-button = ""
+    scan = threading.Thread(target=reader)
+    scan.daemon = True
+    scan.start()
 
-scan = threading.Thread(target=reader)
-scan.daemon = True
-scan.start()
-
-
-tk.Label(window, text="Date", fg=f_g, bg=b_g).place(x=15, y=0)
-tk.Label(window, text="UTC", bg=b_g, fg=f_g).place(x=15, y=22)
-tk.Label(window, text="LST", bg=b_g, fg=f_g).place(x=15, y=44)
-tk.Label(window, text="Loc:", bg=b_g, fg=f_g).place(x=15, y=66)
-tk.Label(
-    window,
-    width=18,
-    anchor="w",
-    text=str(nexus.get_long()) + "\u00b0  " + str(nexus.get_lat()) + "\u00b0",
-    bg=b_g,
-    fg=f_g,
-).place(x=55, y=66)
-img = Image.open(home_path + "/Solver/M16.jpeg")
-img = img.resize((1014, 760))
-img = ImageTk.PhotoImage(img)
-panel = tk.Label(window, highlightbackground="red", highlightthickness=2, image=img)
-panel.place(x=200, y=5, width=1014, height=760)
-
-exposure = StringVar()
-exposure.set(param["Exposure"])
-exp_frame = Frame(window, bg="black")
-exp_frame.place(x=0, y=100)
-tk.Label(exp_frame, text="Exposure", bg=b_g, fg=f_g).pack(padx=1, pady=1)
-for i in range(len(expRange)):
-    tk.Radiobutton(
-        exp_frame,
-        text=str(expRange[i]),
+    tk.Label(window, text="Date", fg=f_g, bg=b_g).place(x=15, y=0)
+    tk.Label(window, text="UTC", bg=b_g, fg=f_g).place(x=15, y=22)
+    tk.Label(window, text="LST", bg=b_g, fg=f_g).place(x=15, y=44)
+    tk.Label(window, text="Loc:", bg=b_g, fg=f_g).place(x=15, y=66)
+    tk.Label(
+        window,
+        width=18,
+        anchor="w",
+        text=str(nexus.get_long()) + "\u00b0  " +
+        str(nexus.get_lat()) + "\u00b0",
         bg=b_g,
         fg=f_g,
-        width=7,
+    ).place(x=55, y=66)
+    img = Image.open(Path(Path.cwd(), "M16.jpeg"))
+    img = img.resize((1014, 760))
+    img = ImageTk.PhotoImage(img)
+    panel = tk.Label(window, highlightbackground="red",
+                     highlightthickness=2, image=img)
+    panel.place(x=200, y=5, width=1014, height=760)
+
+    exposure = StringVar()
+    exposure.set(param["Exposure"])
+    exp_frame = Frame(window, bg="black")
+    exp_frame.place(x=0, y=100)
+    tk.Label(exp_frame, text="Exposure", bg=b_g, fg=f_g).pack(padx=1, pady=1)
+    for i in range(len(expRange)):
+        tk.Radiobutton(
+            exp_frame,
+            text=str(expRange[i]),
+            bg=b_g,
+            fg=f_g,
+            width=7,
+            activebackground="red",
+            anchor="w",
+            highlightbackground="black",
+            value=float(expRange[i]),
+            variable=exposure,
+        ).pack(padx=1, pady=1)
+
+    gain = StringVar()
+    gain.set(param["Gain"])
+    gain_frame = Frame(window, bg="black")
+    gain_frame.place(x=80, y=100)
+    tk.Label(gain_frame, text="Gain", bg=b_g, fg=f_g).pack(padx=1, pady=1)
+    for i in range(len(gainRange)):
+        tk.Radiobutton(
+            gain_frame,
+            text=str(gainRange[i]),
+            bg=b_g,
+            fg=f_g,
+            width=7,
+            activebackground="red",
+            anchor="w",
+            highlightbackground="black",
+            value=float(gainRange[i]),
+            variable=gain,
+        ).pack(padx=1, pady=1)
+
+    go_to = StringVar()
+    go_to.set(param["SkySafari GoTo++"])
+    options_frame = Frame(window, bg="black")
+    options_frame.place(x=20, y=270)
+    tk.Checkbutton(
+        options_frame,
+        text="SkySafari GoTo",
+        width=13,
+        anchor="w",
+        highlightbackground="black",
+        activebackground="red",
+        fg=f_g,
+        bg=b_g,
+        variable=go_to,
+    ).pack(padx=1, pady=1)
+    grat = StringVar()
+    grat.set("0")
+    tk.Checkbutton(
+        options_frame,
+        text="graticule",
+        width=13,
+        anchor="w",
+        highlightbackground="black",
+        activebackground="red",
+        bg=b_g,
+        fg=f_g,
+        variable=grat,
+    ).pack(padx=1, pady=1)
+    polaris = StringVar()
+    polaris.set("0")
+    tk.Checkbutton(
+        options_frame,
+        text="Polaris image",
+        width=13,
+        anchor="w",
+        highlightbackground="black",
+        activebackground="red",
+        bg=b_g,
+        fg=f_g,
+        variable=polaris,
+    ).pack(padx=1, pady=1)
+    test = StringVar()
+    test.set(param["Test mode"])
+    tk.Checkbutton(
+        options_frame,
+        text="Test mode",
+        width=13,
+        anchor="w",
+        highlightbackground="black",
+        activebackground="red",
+        bg=b_g,
+        fg=f_g,
+        variable=test,
+    ).pack(padx=1, pady=1)
+
+    box_write("ccd is " + camera.get_cam_type(), False)
+    box_write("Nexus " + NexStr, True)
+
+    but_frame = Frame(window, bg="black")
+    but_frame.place(x=25, y=650)
+    tk.Button(
+        but_frame,
+        text="Align",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        height=2,
+        width=10,
+        command=align,
+    ).pack(padx=1, pady=40)
+    tk.Button(
+        but_frame,
+        text="Capture",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        bg=b_g,
+        fg=f_g,
+        height=2,
+        width=10,
+        command=image,
+    ).pack(padx=1, pady=5)
+    tk.Button(
+        but_frame,
+        text="Solve",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        height=2,
+        width=10,
+        bg=b_g,
+        fg=f_g,
+        command=solve,
+    ).pack(padx=1, pady=5)
+    tk.Button(
+        but_frame,
+        text="Finish GoTo",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        height=2,
+        width=10,
+        bg=b_g,
+        fg=f_g,
+        command=goto,
+    ).pack(padx=1, pady=5)
+    tk.Button(
+        but_frame,
+        text="Move to Finish",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        height=2,
+        width=10,
+        bg=b_g,
+        fg=f_g,
+        command=move,
+    ).pack(padx=1, pady=5)
+
+    off_frame = Frame(window, bg="black")
+    off_frame.place(x=10, y=420)
+    tk.Button(
+        off_frame,
+        text="Measure",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        height=1,
+        width=8,
+        bg=b_g,
+        fg=f_g,
+        command=measure_offset,
+    ).pack(padx=1, pady=1)
+    tk.Button(
+        off_frame,
+        text="Use New",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        height=1,
+        width=8,
+        command=use_new,
+    ).pack(padx=1, pady=1)
+    tk.Button(
+        off_frame,
+        text="Save Offset",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        bg=b_g,
+        fg=f_g,
+        height=1,
+        width=8,
+        command=save_offset,
+    ).pack(padx=1, pady=1)
+    tk.Button(
+        off_frame,
+        text="Use Saved",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        bg=b_g,
+        fg=f_g,
+        height=1,
+        width=8,
+        command=use_loaded_offset,
+    ).pack(padx=1, pady=1)
+    tk.Button(
+        off_frame,
+        text="Reset Offset",
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        bg=b_g,
+        fg=f_g,
+        height=1,
+        width=8,
+        command=reset_offset,
+    ).pack(padx=1, pady=1)
+    d_x, d_y, dxstr, dystr = pixel2dxdy(offset[0], offset[1])
+
+    tk.Label(window, text="Offset:", bg=b_g, fg=f_g).place(x=10, y=400)
+    tk.Label(window, text="0,0", bg=b_g, fg=f_g, width=6).place(x=60, y=400)
+
+    nex_frame = Frame(window, bg="black")
+    nex_frame.place(x=250, y=766)
+    tk.Button(
+        nex_frame,
+        text="Nexus",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        command=readNexus,
+    ).pack(padx=1, pady=1)
+
+    tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=345, y=770)
+    tk.Label(window, text="Solution", bg=b_g, fg=f_g).place(x=435, y=770)
+    tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=535, y=770)
+    target_frame = Frame(window, bg="black")
+    target_frame.place(x=620, y=766)
+    tk.Button(
+        target_frame,
+        text="Target",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        highlightbackground="red",
+        bd=0,
+        command=readTarget,
+    ).pack(padx=1, pady=1)
+
+    dis_frame = Frame(window, bg="black")
+    dis_frame.place(x=800, y=765)
+    tk.Button(
+        dis_frame,
+        text="Display",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="red",
+        bd=0,
+        width=8,
+        command=image_show,
+    ).pack(padx=1, pady=1)
+    lock = StringVar()
+    lock.set("0")
+    tk.Checkbutton(
+        dis_frame,
+        text="Scope centre",
+        bg=b_g,
+        fg=f_g,
         activebackground="red",
         anchor="w",
         highlightbackground="black",
-        value=float(expRange[i]),
-        variable=exposure,
+        bd=0,
+        width=10,
+        variable=lock,
     ).pack(padx=1, pady=1)
-
-gain = StringVar()
-gain.set(param["Gain"])
-gain_frame = Frame(window, bg="black")
-gain_frame.place(x=80, y=100)
-tk.Label(gain_frame, text="Gain", bg=b_g, fg=f_g).pack(padx=1, pady=1)
-for i in range(len(gainRange)):
-    tk.Radiobutton(
-        gain_frame,
-        text=str(gainRange[i]),
+    zoom = StringVar()
+    zoom.set("0")
+    tk.Checkbutton(
+        dis_frame,
+        text="zoom x2",
         bg=b_g,
         fg=f_g,
-        width=7,
         activebackground="red",
         anchor="w",
         highlightbackground="black",
-        value=float(gainRange[i]),
-        variable=gain,
+        bd=0,
+        width=10,
+        variable=zoom,
+    ).pack(padx=1, pady=1)
+    flip = StringVar()
+    flip.set("0")
+    tk.Checkbutton(
+        dis_frame,
+        text="flip",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=10,
+        variable=flip,
+    ).pack(padx=1, pady=1)
+    mirror = StringVar()
+    mirror.set("0")
+    tk.Checkbutton(
+        dis_frame,
+        text="mirror",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=10,
+        variable=mirror,
+    ).pack(padx=1, pady=1)
+    auto_rotate = StringVar()
+    auto_rotate.set("0")
+    tk.Checkbutton(
+        dis_frame,
+        text="auto-rotate",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=10,
+        variable=auto_rotate,
+    ).pack(padx=1, pady=1)
+    manual_rotate = StringVar()
+    manual_rotate.set("1")
+    tk.Checkbutton(
+        dis_frame,
+        text="rotate angle",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=10,
+        variable=manual_rotate,
+    ).pack(padx=1, pady=1)
+    angle = StringVar()
+    angle.set("0")
+    tk.Entry(
+        dis_frame,
+        textvariable=angle,
+        bg="red",
+        fg=b_g,
+        highlightbackground="red",
+        bd=0,
+        width=5,
+    ).pack(padx=10, pady=1)
+
+    ann_frame = Frame(window, bg="black")
+    ann_frame.place(x=950, y=765)
+    tk.Button(
+        ann_frame,
+        text="Annotate",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="red",
+        bd=0,
+        width=6,
+        command=annotate_image,
+    ).pack(padx=1, pady=1)
+    bright = StringVar()
+    bright.set("0")
+    tk.Checkbutton(
+        ann_frame,
+        text="Bright",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=8,
+        variable=bright,
+    ).pack(padx=1, pady=1)
+    hip = StringVar()
+    hip.set("0")
+    tk.Checkbutton(
+        ann_frame,
+        text="Hip",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=8,
+        variable=hip,
+    ).pack(padx=1, pady=1)
+    hd = StringVar()
+    hd.set("0")
+    tk.Checkbutton(
+        ann_frame,
+        text="H-D",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=8,
+        variable=hd,
+    ).pack(padx=1, pady=1)
+    ngc = StringVar()
+    ngc.set("0")
+    tk.Checkbutton(
+        ann_frame,
+        text="ngc/ic",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=8,
+        variable=ngc,
+    ).pack(padx=1, pady=1)
+    abell = StringVar()
+    abell.set("0")
+    tk.Checkbutton(
+        ann_frame,
+        text="Abell",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=8,
+        variable=abell,
+    ).pack(padx=1, pady=1)
+    tycho2 = StringVar()
+    tycho2.set("0")
+    tk.Checkbutton(
+        ann_frame,
+        text="Tycho2",
+        bg=b_g,
+        fg=f_g,
+        activebackground="red",
+        anchor="w",
+        highlightbackground="black",
+        bd=0,
+        width=8,
+        variable=tycho2,
     ).pack(padx=1, pady=1)
 
-go_to = StringVar()
-go_to.set(param["SkySafari GoTo++"])
-options_frame = Frame(window, bg="black")
-options_frame.place(x=20, y=270)
-tk.Checkbutton(
-    options_frame,
-    text="SkySafari GoTo",
-    width=13,
-    anchor="w",
-    highlightbackground="black",
-    activebackground="red",
-    fg=f_g,
-    bg=b_g,
-    variable=go_to,
-).pack(padx=1, pady=1)
-grat = StringVar()
-grat.set("0")
-tk.Checkbutton(
-    options_frame,
-    text="graticule",
-    width=13,
-    anchor="w",
-    highlightbackground="black",
-    activebackground="red",
-    bg=b_g,
-    fg=f_g,
-    variable=grat,
-).pack(padx=1, pady=1)
-polaris = StringVar()
-polaris.set("0")
-tk.Checkbutton(
-    options_frame,
-    text="Polaris image",
-    width=13,
-    anchor="w",
-    highlightbackground="black",
-    activebackground="red",
-    bg=b_g,
-    fg=f_g,
-    variable=polaris,
-).pack(padx=1, pady=1)
-test = StringVar()
-test.set(param["Test mode"])
-tk.Checkbutton(
-    options_frame,
-    text="Test mode",
-    width=13,
-    anchor="w",
-    highlightbackground="black",
-    activebackground="red",
-    bg=b_g,
-    fg=f_g,
-    variable=test,
-).pack(padx=1, pady=1)
+    tk.Label(window, text="RA", bg=b_g, fg=f_g).place(x=200, y=804)
+    tk.Label(window, text="Dec", bg=b_g, fg=f_g).place(x=200, y=826)
+    tk.Label(window, text="Az", bg=b_g, fg=f_g).place(x=200, y=870)
+    tk.Label(window, text="Alt", bg=b_g, fg=f_g).place(x=200, y=892)
 
-box_write("ccd is " + camera.get_cam_type(), False)
-box_write("Nexus " + NexStr, True)
-
-but_frame = Frame(window, bg="black")
-but_frame.place(x=25, y=650)
-tk.Button(
-    but_frame,
-    text="Align",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    height=2,
-    width=10,
-    command=align,
-).pack(padx=1, pady=40)
-tk.Button(
-    but_frame,
-    text="Capture",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    bg=b_g,
-    fg=f_g,
-    height=2,
-    width=10,
-    command=image,
-).pack(padx=1, pady=5)
-tk.Button(
-    but_frame,
-    text="Solve",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    height=2,
-    width=10,
-    bg=b_g,
-    fg=f_g,
-    command=solve,
-).pack(padx=1, pady=5)
-tk.Button(
-    but_frame,
-    text="Finish GoTo",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    height=2,
-    width=10,
-    bg=b_g,
-    fg=f_g,
-    command=goto,
-).pack(padx=1, pady=5)
-tk.Button(
-    but_frame,
-    text="Move to Finish",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    height=2,
-    width=10,
-    bg=b_g,
-    fg=f_g,
-    command=move,
-).pack(padx=1, pady=5)
-
-off_frame = Frame(window, bg="black")
-off_frame.place(x=10, y=420)
-tk.Button(
-    off_frame,
-    text="Measure",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    height=1,
-    width=8,
-    bg=b_g,
-    fg=f_g,
-    command=measure_offset,
-).pack(padx=1, pady=1)
-tk.Button(
-    off_frame,
-    text="Use New",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    height=1,
-    width=8,
-    command=use_new,
-).pack(padx=1, pady=1)
-tk.Button(
-    off_frame,
-    text="Save Offset",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    bg=b_g,
-    fg=f_g,
-    height=1,
-    width=8,
-    command=save_offset,
-).pack(padx=1, pady=1)
-tk.Button(
-    off_frame,
-    text="Use Saved",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    bg=b_g,
-    fg=f_g,
-    height=1,
-    width=8,
-    command=use_loaded_offset,
-).pack(padx=1, pady=1)
-tk.Button(
-    off_frame,
-    text="Reset Offset",
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    bg=b_g,
-    fg=f_g,
-    height=1,
-    width=8,
-    command=reset_offset,
-).pack(padx=1, pady=1)
-d_x, d_y, dxstr, dystr = pixel2dxdy(offset[0], offset[1])
-
-tk.Label(window, text="Offset:", bg=b_g, fg=f_g).place(x=10, y=400)
-tk.Label(window, text="0,0", bg=b_g, fg=f_g, width=6).place(x=60, y=400)
-
-nex_frame = Frame(window, bg="black")
-nex_frame.place(x=250, y=766)
-tk.Button(
-    nex_frame,
-    text="Nexus",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    command=readNexus,
-).pack(padx=1, pady=1)
-
-tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=345, y=770)
-tk.Label(window, text="Solution", bg=b_g, fg=f_g).place(x=435, y=770)
-tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=535, y=770)
-target_frame = Frame(window, bg="black")
-target_frame.place(x=620, y=766)
-tk.Button(
-    target_frame,
-    text="Target",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    highlightbackground="red",
-    bd=0,
-    command=readTarget,
-).pack(padx=1, pady=1)
-
-dis_frame = Frame(window, bg="black")
-dis_frame.place(x=800, y=765)
-tk.Button(
-    dis_frame,
-    text="Display",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="red",
-    bd=0,
-    width=8,
-    command=image_show,
-).pack(padx=1, pady=1)
-lock = StringVar()
-lock.set("0")
-tk.Checkbutton(
-    dis_frame,
-    text="Scope centre",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=10,
-    variable=lock,
-).pack(padx=1, pady=1)
-zoom = StringVar()
-zoom.set("0")
-tk.Checkbutton(
-    dis_frame,
-    text="zoom x2",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=10,
-    variable=zoom,
-).pack(padx=1, pady=1)
-flip = StringVar()
-flip.set("0")
-tk.Checkbutton(
-    dis_frame,
-    text="flip",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=10,
-    variable=flip,
-).pack(padx=1, pady=1)
-mirror = StringVar()
-mirror.set("0")
-tk.Checkbutton(
-    dis_frame,
-    text="mirror",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=10,
-    variable=mirror,
-).pack(padx=1, pady=1)
-auto_rotate = StringVar()
-auto_rotate.set("0")
-tk.Checkbutton(
-    dis_frame,
-    text="auto-rotate",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=10,
-    variable=auto_rotate,
-).pack(padx=1, pady=1)
-manual_rotate = StringVar()
-manual_rotate.set("1")
-tk.Checkbutton(
-    dis_frame,
-    text="rotate angle",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=10,
-    variable=manual_rotate,
-).pack(padx=1, pady=1)
-angle = StringVar()
-angle.set("0")
-tk.Entry(
-    dis_frame,
-    textvariable=angle,
-    bg="red",
-    fg=b_g,
-    highlightbackground="red",
-    bd=0,
-    width=5,
-).pack(padx=10, pady=1)
-
-
-ann_frame = Frame(window, bg="black")
-ann_frame.place(x=950, y=765)
-tk.Button(
-    ann_frame,
-    text="Annotate",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="red",
-    bd=0,
-    width=6,
-    command=annotate_image,
-).pack(padx=1, pady=1)
-bright = StringVar()
-bright.set("0")
-tk.Checkbutton(
-    ann_frame,
-    text="Bright",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=8,
-    variable=bright,
-).pack(padx=1, pady=1)
-hip = StringVar()
-hip.set("0")
-tk.Checkbutton(
-    ann_frame,
-    text="Hip",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=8,
-    variable=hip,
-).pack(padx=1, pady=1)
-hd = StringVar()
-hd.set("0")
-tk.Checkbutton(
-    ann_frame,
-    text="H-D",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=8,
-    variable=hd,
-).pack(padx=1, pady=1)
-ngc = StringVar()
-ngc.set("0")
-tk.Checkbutton(
-    ann_frame,
-    text="ngc/ic",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=8,
-    variable=ngc,
-).pack(padx=1, pady=1)
-abell = StringVar()
-abell.set("0")
-tk.Checkbutton(
-    ann_frame,
-    text="Abell",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=8,
-    variable=abell,
-).pack(padx=1, pady=1)
-tycho2 = StringVar()
-tycho2.set("0")
-tk.Checkbutton(
-    ann_frame,
-    text="Tycho2",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=8,
-    variable=tycho2,
-).pack(padx=1, pady=1)
-
-tk.Label(window, text="RA", bg=b_g, fg=f_g).place(x=200, y=804)
-tk.Label(window, text="Dec", bg=b_g, fg=f_g).place(x=200, y=826)
-tk.Label(window, text="Az", bg=b_g, fg=f_g).place(x=200, y=870)
-tk.Label(window, text="Alt", bg=b_g, fg=f_g).place(x=200, y=892)
-
-EP = StringVar()
-EP.set("0")
-EP_frame = Frame(window, bg="black")
-EP_frame.place(x=1060, y=770)
-rad13 = Checkbutton(
-    EP_frame,
-    text="FOV indicator",
-    bg=b_g,
-    fg=f_g,
-    activebackground="red",
-    anchor="w",
-    highlightbackground="black",
-    bd=0,
-    width=20,
-    variable=EP,
-).pack(padx=1, pady=2)
-EPlength = StringVar()
-EPlength.set(float(param["default_eyepiece"]))
-for i in range(len(eye_piece)):
-    tk.Radiobutton(
+    EP = StringVar()
+    EP.set("0")
+    EP_frame = Frame(window, bg="black")
+    EP_frame.place(x=1060, y=770)
+    rad13 = Checkbutton(
         EP_frame,
-        text=eye_piece[i][0],
+        text="FOV indicator",
         bg=b_g,
         fg=f_g,
         activebackground="red",
@@ -1465,9 +1480,47 @@ for i in range(len(eye_piece)):
         highlightbackground="black",
         bd=0,
         width=20,
-        value=eye_piece[i][1] * eye_piece[i][2],
-        variable=EPlength,
-    ).pack(padx=1, pady=0)
-get_offset()
-window.protocol("WM_DELETE_WINDOW", on_closing)
-window.mainloop()
+        variable=EP,
+    ).pack(padx=1, pady=2)
+    EPlength = StringVar()
+    EPlength.set(float(param["default_eyepiece"]))
+    for i in range(len(eye_piece)):
+        tk.Radiobutton(
+            EP_frame,
+            text=eye_piece[i][0],
+            bg=b_g,
+            fg=f_g,
+            activebackground="red",
+            anchor="w",
+            highlightbackground="black",
+            bd=0,
+            width=20,
+            value=eye_piece[i][1] * eye_piece[i][2],
+            variable=EPlength,
+        ).pack(padx=1, pady=0)
+    get_offset()
+    window.protocol("WM_DELETE_WINDOW", on_closing)
+    window.mainloop()
+
+
+if __name__ == "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logging.basicConfig(
+        format="%(asctime)s %(name)s: %(levelname)s %(message)s")
+    parser = argparse.ArgumentParser(description="eFinder")
+    parser.add_argument(
+        "-fh", "--fakehandpad", help="Use a fake handpad", default=False, action='store_true', required=False
+    )
+    parser.add_argument(
+        "-fn", "--fakenexus", help="Use a fake nexus", default=False, action='store_true', required=False
+    )
+    parser.add_argument(
+        "-x", "--verbose", help="Set logging to debug mode", action="store_true"
+    )
+    args = parser.parse_args()
+    # add the handlers to the logger
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
+    main(not args.fakehandpad, not args.fakenexus)

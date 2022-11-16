@@ -595,15 +595,13 @@ if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
 
-if param["Camera Type ('QHY' or 'ASI')"] == "ASI":
+camera_type = param["Camera Type"]
+if camera_type == "ASI":
     import ASICamera
-
     camera = ASICamera.ASICamera(handpad)
-elif param["Camera Type ('QHY' or 'ASI')"] == "QHY":
+elif camera_type == "QHY":
     import QHYCamera
-
     camera = QHYCamera.QHYCamera(handpad)
-
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""
