@@ -271,7 +271,7 @@ def solveImage():
     ]
     # "--temp-axy" We can't specify not to create the axy list, but we can write it to /tmp
     cmd = ["solve-field"]
-    captureFile = Path(Path.cwd(), "capture.jpg")
+    captureFile = home_path + "/Solver/images/capture.jpg"
     options = (
         limitOptions + optimizedOptions +
         scaleOptions + fileOptions + [captureFile]
@@ -378,7 +378,8 @@ def applyOffset():  # creates & returns a 'Skyfield star object' at the set offs
 
 def image_show():
     global manual_angle, img3
-    img2 = Image.open(Path(Path.cwd(), "capture.jpg"))
+    image_path = Path(home_path, "Solver/images/capture.jpg")
+    img2 = Image.open(image_path)
     width, height = img2.size
     img2 = img2.resize((1014, 760), Image.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
@@ -932,7 +933,7 @@ def do_button(event):
 
 def main(realHandpad, realNexus):
     # main code starts here
-    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle
+    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
     nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(

@@ -1,9 +1,13 @@
 from pathlib import Path
 from shutil import copyfile
+import logging
 
 
 class CameraDebug:
     """All cameras should implement this interface.  The interface is used in the eFinder and eFinder_VNCGUI code"""
+
+    def __init__(self):
+        self.home = Path.home()
 
     def initialize(self) -> None:
         """Initializes the camera and set the needed control parameters"""
@@ -18,12 +22,21 @@ class CameraDebug:
         exposure_time (float): The exposure time in seconds
         gain (float): The gain
         radec (str)"""
-        cwd = Path.cwd()
         if m13 == True:
-            copyfile(Path(cwd, "test.jpg"), Path(cwd, "capture.jpg"))
+            logging.debug("Capturing debug image of m13")
+            print("m13")
+            copyfile(Path(self.home, "/Solver/test.jpg"), Path(
+                self.home, "/Solver/images/capture.jpg"))
         elif polaris == True:
-            copyfile(Path(cwd, "polaris.jpg"), Path(cwd, "capture.jpg"))
-            print("using Polaris")
+            logging.debug("Capturing debug image of Polaris")
+            self.copy_polaris()
+        else:
+            logging.warning("No debug image was selected, choosing polaris")
+            self.copy_polaris()
+
+    def copy_polaris(self):
+        copyfile(Path(self.home, "Solver/polaris.jpg"),
+                 Path(self.home, "Solver/images/capture.jpg"))
 
     def get_cam_type(self) -> str:
         """Return the type of the camera
