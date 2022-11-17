@@ -1,10 +1,15 @@
 import serial
 
 
-class HandpadDebug:
+class HandpadDebug():
     """ A fake handpad """
     module = False
-    box = False
+    box = False # this is supposed to be a Serial object
+    nr_chars = 20
+
+    def __init__(self):
+        self.header, header_dashes = self._create_headings(self.nr_chars, 'Handpad start')
+        self.footer, _ = self._create_headings(self.nr_chars, 'Handpad stop', header_dashes)
 
     def display(self, line0: str, line1: str, line2: str) -> None:
         """Display the three lines on the display
@@ -14,7 +19,12 @@ class HandpadDebug:
         line1 (str): The second line to display
         line2 (str): The third line to display.  This line is not displayed on the LCD module.
         """
-        print(f"{line0}\n{line1}\n{line2}")
+        # no logging here because multiline logging is ugly 
+        print(f"{self.header}{line0}\n{line1}\n{line2}\n{self.footer}")
+
+    def _create_headings(self, nr_chars, text, header_dashes = None):
+        dashes = int((nr_chars-len(text))/2) if header_dashes is None else header_dashes
+        return f"{dashes*'-'}{text}{(nr_chars-dashes-len(text))*'-'}\n", dashes
 
     def get_box(self) -> serial.Serial:
         """Returns the box variable
@@ -28,4 +38,4 @@ class HandpadDebug:
 
         Returns:
         bool: True is the handbox is an OLED"""
-        return self.USB_module
+        return self.module

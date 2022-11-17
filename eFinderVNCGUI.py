@@ -26,6 +26,7 @@ import math
 from HandpadDebug import HandpadDebug
 from NexusDebug import NexusDebug
 from PIL import Image, ImageTk, ImageDraw, ImageOps
+from PIL.Image import Resampling
 from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
@@ -381,7 +382,7 @@ def image_show():
     image_path = Path(home_path, "Solver/images/capture.jpg")
     img2 = Image.open(image_path)
     width, height = img2.size
-    img2 = img2.resize((1014, 760), Image.LANCZOS)  # original is 1280 x 960
+    img2 = img2.resize((1014, 760), Resampling.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
     scale = 1 if test.get() == "1" else 4
     h = 60 * scale  # vertical finder field of view in arc min
@@ -515,7 +516,7 @@ def annotate_image():
             try:
                 os.remove(filePath)
             except:
-                print("problem while deleting file :", filePath)
+                logging.error("problem while deleting file :", filePath)
         box_write("annotation successful", True)
         img4 = ImageTk.PhotoImage(img3)
         panel.configure(image=img4)
@@ -562,13 +563,13 @@ def deltaCalc():
 def moveScope(dAz, dAlt):
     azPulse = abs(dAz / float(param["azSpeed"]))  # seconds
     altPulse = abs(dAlt / float(param["altSpeed"]))
-    print(
+    logging.debug(
         "%s %.2f  %s  %.2f %s" % (
             "azPulse:", azPulse, "altPulse:", altPulse, "seconds")
     )
     nexus.write("#:RG#")  # set move speed to guide
     box_write("moving scope in Az", True)
-    print("moving scope in Az")
+    logging.info("moving scope in Az")
     if dAz > 0:  # if +ve move scope left
         nexus.write("#:Me#")
         time.sleep(azPulse)
@@ -579,7 +580,7 @@ def moveScope(dAz, dAlt):
         nexus.write("#:Q#")
     time.sleep(0.2)
     box_write("moving scope in Alt", True)
-    print("moving scope in Alt")
+    logging.info("moving scope in Alt")
     nexus.write("#:RG#")
     if dAlt > 0:  # if +ve move scope down
         nexus.write("#:Ms#")
@@ -590,7 +591,7 @@ def moveScope(dAz, dAlt):
         time.sleep(altPulse)
         nexus.write("#:Q#")
     box_write("move finished", True)
-    print("move finished")
+    logging.info("move finished")
     time.sleep(1)
 
 
@@ -607,29 +608,29 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
 
     try:
         valid = nexus.get(align_ra)
-        print("sent align RA command:", align_ra)
+        logging.info("sent align RA command:", align_ra)
         box_write("sent " + align_ra, True)
         if valid == "0":
             box_write("invalid position", True)
             tk.Label(window, text="invalid alignment").place(x=20, y=680)
             return
         valid = nexus.get(align_dec)
-        print("sent align Dec command:", align_dec)
+        logging.info("sent align Dec command:", align_dec)
         box_write("sent " + align_dec, True)
         if valid == "0":
             box_write("invalid position", True)
             tk.Label(window, text="invalid alignment").place(x=20, y=680)
             return
         reply = nexus.get(":CM#")
-        print(":CM#")
+        logging.info(":CM#")
         box_write("sent :CM#", False)
-        print("reply: ", reply)
+        logging.info("reply: ", reply)
         p = nexus.get(":GW#")
-        print("Align status reply ", p[0:3])
+        logging.info("Align status reply ", p[0:3])
         box_write("Align reply:" + p[0:3], False)
         align_count += 1
     except Exception as ex:
-        print(ex)
+        logging.error(ex)
         box_write("Nexus error", True)
     tk.Label(window, text="align count: " + str(align_count), bg=b_g, fg=f_g).place(
         x=20, y=600
@@ -752,7 +753,7 @@ def readTarget():
         goto_dec = nexus.get(":GD#")
     ra = goto_ra.split(":")
     dec = re.split(r"[:*]", goto_dec)
-    print("goto RA & Dec", goto_ra, goto_dec)
+    logging.info("goto RA & Dec", goto_ra, goto_dec)
     goto_radec = (float(ra[0]) + float(ra[1]) / 60 + float(ra[2]) / 3600), (
         float(dec[0]) + float(dec[1]) / 60 + float(dec[2]) / 3600
     )
@@ -835,18 +836,18 @@ def move():
     if goto_ra[0] == "00" and goto_ra[1] == "00":
         box_write("no GoTo target", True)
         return
-    print("goto RA & Dec", goto_ra, goto_dec)
+    logging.info("goto RA & Dec", goto_ra, goto_dec)
     ra = float(goto_ra[0]) + float(goto_ra[1]) / 60 + float(goto_ra[2]) / 3600
     dec = float(goto_dec[0]) + float(goto_dec[1]) / \
         60 + float(goto_dec[2]) / 3600
-    print("goto radec", ra, dec)
+    logging.info("lgoto radec", ra, dec)
     alt_g, az_g = coordinates.conv_altaz(nexus, ra, dec)
-    print("target Az Alt", az_g, alt_g)
+    logging.info("target Az Alt", az_g, alt_g)
     delta_Az = (az_g - solved_altaz[1]) * 60  # +ve move scope right
     delta_Alt = (alt_g - solved_altaz[0]) * 60  # +ve move scope up
     delta_Az_str = "{: .2f}".format(delta_Az)
     delta_Alt_str = "{: .2f}".format(delta_Alt)
-    print("deltaAz, deltaAlt:", delta_Az_str, delta_Alt_str)
+    logging.info("deltaAz, deltaAlt:", delta_Az_str, delta_Alt_str)
     box_write("deltaAz : " + delta_Az_str, True)
     box_write("deltaAlt: " + delta_Alt_str, True)
     moveScope(delta_Az, delta_Alt)
@@ -883,7 +884,7 @@ def reader():
 
 def get_param(location=Path(home_path, "eFinder.config")):
     global eye_piece, param, expRange, gainRange
-    print(location)
+    logging.debug(f"Loading params from {location}")
     if os.path.exists(location) == True:
         with open(location) as h:
             for line in h:
@@ -911,7 +912,7 @@ def save_param():
 
 def do_button(event):
     global handpad, coordinates
-    print(button)
+    logging.debug(f"button event: {button}")
     if button == '21':
         handpad.display('Capturing image', '', '')
         image()
@@ -932,6 +933,7 @@ def do_button(event):
 
 
 def main(realHandpad, realNexus):
+    logging.info(f"Starting eFinder version {version}...")
     # main code starts here
     global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
@@ -941,7 +943,7 @@ def main(realHandpad, realNexus):
     NexStr = nexus.get_nex_str()
     param = dict()
     get_param(Path(".", "eFinder.config"))
-    print(param)
+    logging.debug(f"{param=}")
 
     planets = load("de421.bsp")
     earth = planets["earth"]
