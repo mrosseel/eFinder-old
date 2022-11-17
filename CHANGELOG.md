@@ -1,36 +1,45 @@
 # Changelog for eFinder software
 
-## Version 16
-
+## Version 16_3
 [Keith Venables]
+- Resolved problem with Nexus DSC not returning its own GoTo target coordinates (using LX200 protocol). New Nexus firmware released on 17th Nov 2022
+- Cleaned up GUI panel, removing redundant check boxes (finder focallength and goto source). Moved graticule checkbox to same sub-panel other display options.
+- Added new test images (test.jpg & polaris.jpg) that match the 50mm default focal length. Removed all code references to choice of 200mm lens.
+- Handpad now offers basic functionality even when the GUI is being run. (Solve, Align & Goto++)
+- removed bug whereby in test mode the wrong scale was being used to generate offsets.
 
+## Version 16
+[Keith Venables]
 - Added ability for user to adjust OLED brightness on the handpad. (main.py)
-- Fixed a bug where the RA & Dec wasnt being tagged to the saved image file name. (Nexus.py)
+- Fixed a bug where the RA & Dec wasnt being tagged to the saved image file name.
+	Nexus.py
 
 ## Version 15
-
 [Keith Venables]
-
 - Added support for QHY cameras (only tested so far with a QHY5L-II Mono)
-install the following to ~/Solver
-libqhy.py
-QHYCamera.py
-qhyccd.py
-add extra line to efinder.config.... Camera Type ('QHY' or 'ASI'):ASI
+	install the following to ~/Solver
+	libqhy.py
+	QHYCamera.py
+	qhyccd.py
+	add extra line to efinder.config.... Camera Type ('QHY' or 'ASI'):ASI
 - Added option to choose between Nexus & SkySafari for source of GoTo target.
-add extra line to efinder.config.... SkySafari GoTo++:0
-0 = Nexus, 1 = SkySafari.
+	add extra line to efinder.config.... SkySafari GoTo++:0
+	0 = Nexus, 1 = SkySafari.
 - removes option for 200mm focal length finder scope (ie 50mm only)
 - removes support for LCD display module (ie OLED only)
-- Add QHY as option for the camera.
 
 ## Version 14
+[Keith Venables]
+- Fixed a bug on the handpad version whereby in the final 'status' screen, use of the up or down buttons crashed the code.
+
+- Fixed a bug that prevents handpad saved exposure & gain preferences from being displayed on the GUI.
+
+- Modified how the handpad display starts when using the GUI version.
+
+- Fixed a bug on the handpad version whereby a failed solve could result in the previous delta being displayed without a 'failed solve' warning
 
 [Keith Venables]
 
-- Fixed a bug that prevents handpad saved exposure & gain preferences from being displayed on the GUI.
-- Modified how the handpad display starts when using the GUI version.
-- Fixed a bug on the handpad version whereby a failed solve could result in the previous delta being displayed without a 'failed solve' warning
 - Make the handpad work with the VNC GUI version
 
 [Wim De Meester]
