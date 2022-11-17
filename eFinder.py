@@ -33,7 +33,7 @@ import ASICamera
 import CameraInterface
 
 home_path = str(Path.home())
-version = "16_1"
+version = "16_3"
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
@@ -44,6 +44,7 @@ offset = 640, 480
 star_name = "no star"
 solve = False
 sync_count = 0
+pix_scale = 15
 
 
 def xy2rd(x, y):  # returns the RA & Dec equivalent to a camera pixel x,y
@@ -69,7 +70,6 @@ def xy2rd(x, y):  # returns the RA & Dec equivalent to a camera pixel x,y
 def pixel2dxdy(
     pix_x, pix_y
 ):  # converts a pixel position, into a delta angular offset from the image centre
-    pix_scale = 3.747 if param["Test mode"] == "1" else 15
     deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
     deg_y = (480 - float(pix_y)) * pix_scale / 3600
     dxstr = "{: .1f}".format(float(60 * deg_x))  # +ve if finder is left of Polaris
@@ -80,7 +80,6 @@ def pixel2dxdy(
 
 
 def dxdy2pixel(dx, dy):
-    pix_scale = 3.747 if param["Test mode"] == "1" else 15
     pix_x = dx * 3600 / pix_scale + 640
     pix_y = 480 - dy * 3600 / pix_scale
     dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
@@ -98,9 +97,8 @@ def imgDisplay():  # displays the captured image on the Pi desktop.
 
 def solveImage():
     global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset, solved_radec, solved_altaz
-    scale = 15 if param["Test mode"] == "0" else 3.75
-    scale_low = str(scale * 0.9)
-    scale_high = str(scale * 1.1)
+    scale_low = str(pix_scale * 0.9)
+    scale_high = str(pix_scale * 1.1)
     name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
     handpad.display("Started solving", "", "")
     limitOptions = [
@@ -314,10 +312,8 @@ def flip():
 
 def update_summary():
     global param
-    arr[1, 0][0] = (
-        "Ex:" + str(param["Exposure"]) + " SkyS:" + str(param["SkySafari GoTo++"])
-    )
-    arr[1, 0][1] = "Gn:" + str(param["Gain"]) + " Test:" + str(param["Test mode"])
+    arr[1, 0][0] = "Ex:" + str(param["Exposure"]) + "  Gn:" + str(param["Gain"])
+    arr[1, 0][1] = "Test mode:" + str(param["Test mode"])
     save_param()
 
 
@@ -364,19 +360,14 @@ def go_solve():
 
 def goto():
     handpad.display("Attempting", "GoTo++", "")
-    if param["SkySafari GoTo++"] == "1":
-        goto_ra = nexus.get(":Gr#")
-        if (
-            goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
-        ):  # not a valid goto target set yet.
-            print("no GoTo target")
-            return
-        goto_dec = nexus.get(":Gd#")
-        print("SkySafari goto RA & Dec", goto_ra, goto_dec)
-    else:
-        goto_ra = nexus.get(":GR#")
-        goto_dec = nexus.get(":GD#")
-        print("Nexus goto RA & Dec", goto_ra, goto_dec)
+    goto_ra = nexus.get(":Gr#")
+    if (
+        goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
+    ):  # not a valid goto target set yet.
+        print("no GoTo target")
+        return
+    goto_dec = nexus.get(":Gd#")
+    print("Target goto RA & Dec", goto_ra, goto_dec)
     align()
     if solve == False:
         handpad.display("problem", "solving", "")
@@ -557,17 +548,6 @@ mode = [
     "go_solve()",
     "goto()",
 ]
-go_to = [
-    "SkySafari GoTo++",
-    int(param["SkySafari GoTo++"]),
-    "",
-    "flip()",
-    "flip()",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
 status = [
     "Nexus via " + nexus.get_nexus_link(),
     "Nex align " + str(nexus.is_aligned()),
@@ -583,7 +563,7 @@ status = [
 arr = np.array(
     [
         [home, nex, sol, delta, aligns, polar, reset],
-        [summary, exp, gn, mode, go_to, status, status],
+        [summary, exp, gn, mode, status, status, status],
     ]
 )
 update_summary()

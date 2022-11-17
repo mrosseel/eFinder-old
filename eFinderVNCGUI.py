@@ -44,7 +44,7 @@ import Display
 import CameraInterface
 import ASICamera
 
-version = "16_1_VNC"
+version = "16_3_VNC"
 os.system("pkill -9 -f eFinder.py")  # comment out if this is the autoboot program
 
 home_path = str(Path.home())
@@ -77,6 +77,7 @@ f_g = "red"
 b_g = "black"
 solved_radec = 0, 0
 usb = False
+pix_scale = 15
 
 
 def setup_sidereal():
@@ -138,7 +139,6 @@ def xy2rd(x, y):  # returns the RA & Dec (J2000) corresponding to an image x,y p
 
 
 def pixel2dxdy(pix_x, pix_y):  # converts an image pixel x,y to a delta x,y in degrees.
-    pix_scale = 3.74715 if test.get() == "1" else 15
     deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
     deg_y = (480 - float(pix_y)) * pix_scale / 3600
     dxstr = "{: .1f}".format(float(60 * deg_x))  # +ve if finder is left of Polaris
@@ -149,7 +149,6 @@ def pixel2dxdy(pix_x, pix_y):  # converts an image pixel x,y to a delta x,y in d
 
 
 def dxdy2pixel(dx, dy):
-    pix_scale = 3.74715 if test.get() == "1" else 15
     pix_x = dx * 3600 / pix_scale + 640
     pix_y = 480 - dy * 3600 / pix_scale
     dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
@@ -220,10 +219,8 @@ def capture():
 
 def solveImage():
     global solved, scopeAlt, star_name, star_name_offset, solved_radec, solved_altaz
-    scale = 3.75 if test.get() == "1" else 15
-    box_write('"/pixel: ' + str(scale), False)
-    scale_low = str(scale * 0.9)
-    scale_high = str(scale * 1.1)
+    scale_low = str(pix_scale * 0.9)
+    scale_high = str(pix_scale * 1.1)
     name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
     limitOptions = [
         "--overwrite",  # overwrite any existing files
@@ -299,6 +296,7 @@ def solveImage():
         if "The star" in result:
             lines = result.split("\n")
             for line in lines:
+                print(line)
                 if line.startswith("  The star "):
                     star_name = line.split(" ")[4]
                     print("Solve-field Plot found: ", star_name)
@@ -369,9 +367,8 @@ def image_show():
     width, height = img2.size
     img2 = img2.resize((1014, 760), Image.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
-    scale = 1 if test.get() == "1" else 4
-    h = 60 * scale  # vertical finder field of view in arc min
-    w = 80 * scale
+    h = pix_scale * 960/60  # vertical finder field of view in arc min
+    w = pix_scale * 1280/60
     w_offset = width * offset[0] * 60 / w
     h_offset = height * offset[1] * 60 / h
     img2 = img2.convert("RGB")
@@ -429,11 +426,8 @@ def image_show():
 
 def annotate_image():
     global img3
-    scale = 3.75 if test.get() == "1" else 15
-    scale_low = str(
-        scale * 0.9 * 1.2
-    )  # * 1.2 is because image has been resized for the display panel
-    scale_high = str(scale * 1.1 * 1.2)
+    scale_low = str(pix_scale * 0.9 * 1.2)  # * 1.2 is because image has been resized for the display panel
+    scale_high = str(pix_scale * 1.1 * 1.2)
     image_show()
     img3 = img3.save(home_path + "/Solver/images/adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
@@ -722,17 +716,13 @@ def solve():
 
 def readTarget():
     global goto_radec, goto_altaz, goto_ra, goto_dec
-    if go_to.get()=='1':
-        goto_ra = nexus.get(":Gr#")
-        goto_dec = nexus.get(":Gd#")
-        if (
-            goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
-        ):  # not a valid goto target set yet.
-            box_write("no GoTo target", True)
-            return
-    else:
-        goto_ra = nexus.get(":GR#")
-        goto_dec = nexus.get(":GD#")
+    goto_ra = nexus.get(":Gr#")
+    goto_dec = nexus.get(":Gd#")
+    if (
+        goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
+    ):  # not a valid goto target set yet.
+        box_write("no GoTo target", True)
+        return
     ra = goto_ra.split(":")
     dec = re.split(r"[:*]", goto_dec)
     print("goto RA & Dec", goto_ra, goto_dec)
@@ -838,7 +828,6 @@ def on_closing():
     handpad.display('Program closed','via VNCGUI','')
     sys.exit()
 
-
 def box_write(new_line, show_handpad):
     global handpad
     t = ts.now()
@@ -847,9 +836,6 @@ def box_write(new_line, show_handpad):
     box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
     for i in range(0, 5, 1):
         tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(x=1050, y=980 - i * 16)
-    #if show_handpad:
-    #    handpad.display(new_line, "", "")
-
 
 def reader():
     global button
@@ -858,7 +844,6 @@ def reader():
             button = handpad.get_box().readline().decode("ascii").strip("\r\n")
             window.event_generate("<<OLED_Button>>")
         time.sleep(0.1)
-
 
 def get_param():
     global eye_piece, param, expRange, gainRange
@@ -875,13 +860,11 @@ def get_param():
                 elif line[0].startswith("Gain_range"):
                     gainRange = line[1].split(",")
 
-
 def save_param():
     global param
     param["Exposure"] = exposure.get()
     param["Gain"] = gain.get()
     param["Test mode"] = test.get()
-    param["SkySafari GoTo++"] = go_to.get()
     with open(home_path + "/Solver/eFinder.config", "w") as h:
         for key, value in param.items():
             h.write("%s:%s\n" % (key, value))
@@ -1004,34 +987,10 @@ for i in range(len(gainRange)):
         variable=gain,
     ).pack(padx=1, pady=1)
 
-go_to = StringVar()
-go_to.set(param["SkySafari GoTo++"])
+
 options_frame = Frame(window, bg="black")
 options_frame.place(x=20, y=270)
-tk.Checkbutton(
-    options_frame,
-    text="SkySafari GoTo",
-    width=13,
-    anchor="w",
-    highlightbackground="black",
-    activebackground="red",
-    fg=f_g,
-    bg=b_g,
-    variable=go_to,
-).pack(padx=1, pady=1)
-grat = StringVar()
-grat.set("0")
-tk.Checkbutton(
-    options_frame,
-    text="graticule",
-    width=13,
-    anchor="w",
-    highlightbackground="black",
-    activebackground="red",
-    bg=b_g,
-    fg=f_g,
-    variable=grat,
-).pack(padx=1, pady=1)
+
 polaris = StringVar()
 polaris.set("0")
 tk.Checkbutton(
@@ -1049,7 +1008,7 @@ test = StringVar()
 test.set(param["Test mode"])
 tk.Checkbutton(
     options_frame,
-    text="Test mode",
+    text="M31 image",
     width=13,
     anchor="w",
     highlightbackground="black",
@@ -1102,7 +1061,7 @@ tk.Button(
 ).pack(padx=1, pady=5)
 tk.Button(
     but_frame,
-    text="Finish GoTo",
+    text="GoTo: via Align",
     activebackground="red",
     highlightbackground="red",
     bd=0,
@@ -1114,7 +1073,7 @@ tk.Button(
 ).pack(padx=1, pady=5)
 tk.Button(
     but_frame,
-    text="Move to Finish",
+    text="GoTo: via Move",
     activebackground="red",
     highlightbackground="red",
     bd=0,
@@ -1234,6 +1193,19 @@ tk.Button(
     bd=0,
     width=8,
     command=image_show,
+).pack(padx=1, pady=1)
+grat = StringVar()
+grat.set("0")
+tk.Checkbutton(
+    dis_frame,
+    text="graticule",
+    width=10,
+    anchor="w",
+    highlightbackground="black",
+    activebackground="red",
+    bg=b_g,
+    fg=f_g,
+    variable=grat,
 ).pack(padx=1, pady=1)
 lock = StringVar()
 lock.set("0")
