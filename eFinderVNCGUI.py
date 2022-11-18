@@ -41,7 +41,7 @@ import Display
 import logging
 import argparse
 
-version = "16_3_VNC"
+version = "16_4_VNC"
 # comment out if this is the autoboot program
 os.system("pkill -9 -f eFinder.py")
 
@@ -368,9 +368,8 @@ def applyOffset():  # creates & returns a 'Skyfield star object' at the set offs
 
 
 def image_show():
-    global manual_angle, img3
-    image_path = Path(home_path, "Solver/images/capture.jpg")
-    img2 = Image.open(image_path)
+    global manual_angle, img3, EPlength
+    img2 = Image.open(home_path + "/Solver/images/capture.jpg")
     width, height = img2.size
     img2 = img2.resize((1014, 760), Resampling.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
@@ -729,13 +728,13 @@ def readTarget():
     goto_ra = nexus.get(":Gr#")
     goto_dec = nexus.get(":Gd#")
     if (
-        goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
+         goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
     ):  # not a valid goto target set yet.
         box_write("no GoTo target", True)
         return
     ra = goto_ra.split(":")
     dec = re.split(r"[:*]", goto_dec)
-    logging.info("goto RA & Dec", goto_ra, goto_dec)
+    print("goto RA & Dec", goto_ra, goto_dec)
     goto_radec = (float(ra[0]) + float(ra[1]) / 60 + float(ra[2]) / 3600), (
         float(dec[0]) + float(dec[1]) / 60 + float(dec[2]) / 3600
     )
@@ -905,8 +904,22 @@ def do_button(event):
         handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
             solved_radec[1]), 'd:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
 
+def pick_camera(camera_type):
+    camera = None
+    if camera_type == 'ASI':
+        import ASICamera
+        camera = ASICamera.ASICamera(handpad)
+    elif camera_type == 'QHY':
+        import QHYCamera
+        camera = QHYCamera.QHYCamera(handpad)
+    elif camera_type == 'TEST':
+        import CameraDebug
+        camera = CameraDebug.CameraDebug()
+    return camera
+ 
 
-def main(realHandpad, realNexus):
+
+def main(realHandpad, realNexus, fakeCamera):
     logging.info(f"Starting eFinder version {version}...")
     # main code starts here
     global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to
@@ -923,18 +936,10 @@ def main(realHandpad, realNexus):
     earth = planets["earth"]
     ts = load.timescale()
     nexus.read()
-    camera_type = param["Camera Type"]
+    camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
+    camera = pick_camera(camera_type)
 
-    if camera_type == 'ASI':
-        import ASICamera
-        camera = ASICamera.ASICamera(handpad)
-    elif camera_type == 'QHY':
-        import QHYCamera
-        camera = QHYCamera.QHYCamera(handpad)
-    elif camera_type == 'TEST':
-        import CameraDebug
-        camera = CameraDebug.CameraDebug()
-
+    logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
     handpad.display('eFinder via VNC', 'Select: Solves', 'Up:Align Dn:GoTo',)
     # main program loop, using tkinter GUI
     window = tk.Tk()
@@ -967,7 +972,7 @@ def main(realHandpad, realNexus):
         bg=b_g,
         fg=f_g,
     ).place(x=55, y=66)
-    img = Image.open(Path(Path.cwd(), "M16.jpeg"))
+    img = Image.open(home_path + "/Solver/M16.jpeg")
     img = img.resize((1014, 760))
     img = ImageTk.PhotoImage(img)
     panel = tk.Label(window, highlightbackground="red",
@@ -1012,34 +1017,8 @@ def main(realHandpad, realNexus):
             variable=gain,
         ).pack(padx=1, pady=1)
 
-    go_to = StringVar()
-    go_to.set("0")
     options_frame = Frame(window, bg="black")
     options_frame.place(x=20, y=270)
-    tk.Checkbutton(
-        options_frame,
-        text="SkySafari GoTo",
-        width=13,
-        anchor="w",
-        highlightbackground="black",
-        activebackground="red",
-        fg=f_g,
-        bg=b_g,
-        variable=go_to,
-    ).pack(padx=1, pady=1)
-    grat = StringVar()
-    grat.set("0")
-    tk.Checkbutton(
-        options_frame,
-        text="graticule",
-        width=13,
-        anchor="w",
-        highlightbackground="black",
-        activebackground="red",
-        bg=b_g,
-        fg=f_g,
-        variable=grat,
-    ).pack(padx=1, pady=1)
     polaris = StringVar()
     polaris.set("0")
     tk.Checkbutton(
@@ -1057,408 +1036,7 @@ def main(realHandpad, realNexus):
     test.set(param["Test mode"])
     tk.Checkbutton(
         options_frame,
-        text="Test mode",
-        width=13,
-        anchor="w",
-        highlightbackground="black",
-        activebackground="red",
-        bg=b_g,
-        fg=f_g,
-        variable=test,
-    ).pack(padx=1, pady=1)
-
-    box_write("ccd is " + camera.get_cam_type(), False)
-    box_write("Nexus " + NexStr, True)
-
-    but_frame = Frame(window, bg="black")
-    but_frame.place(x=25, y=650)
-    tk.Button(
-        but_frame,
-        text="Align",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        height=2,
-        width=10,
-        command=align,
-    ).pack(padx=1, pady=40)
-    tk.Button(
-        but_frame,
-        text="Capture",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        bg=b_g,
-        fg=f_g,
-        height=2,
-        width=10,
-        command=image,
-    ).pack(padx=1, pady=5)
-    tk.Button(
-        but_frame,
-        text="Solve",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        height=2,
-        width=10,
-        bg=b_g,
-        fg=f_g,
-        command=solve,
-    ).pack(padx=1, pady=5)
-    tk.Button(
-        but_frame,
-        text="Finish GoTo",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        height=2,
-        width=10,
-        bg=b_g,
-        fg=f_g,
-        command=goto,
-    ).pack(padx=1, pady=5)
-    tk.Button(
-        but_frame,
-        text="Move to Finish",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        height=2,
-        width=10,
-        bg=b_g,
-        fg=f_g,
-        command=move,
-    ).pack(padx=1, pady=5)
-
-    off_frame = Frame(window, bg="black")
-    off_frame.place(x=10, y=420)
-    tk.Button(
-        off_frame,
-        text="Measure",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        height=1,
-        width=8,
-        bg=b_g,
-        fg=f_g,
-        command=measure_offset,
-    ).pack(padx=1, pady=1)
-    tk.Button(
-        off_frame,
-        text="Use New",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        height=1,
-        width=8,
-        command=use_new,
-    ).pack(padx=1, pady=1)
-    tk.Button(
-        off_frame,
-        text="Save Offset",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        bg=b_g,
-        fg=f_g,
-        height=1,
-        width=8,
-        command=save_offset,
-    ).pack(padx=1, pady=1)
-    tk.Button(
-        off_frame,
-        text="Use Saved",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        bg=b_g,
-        fg=f_g,
-        height=1,
-        width=8,
-        command=use_loaded_offset,
-    ).pack(padx=1, pady=1)
-    tk.Button(
-        off_frame,
-        text="Reset Offset",
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        bg=b_g,
-        fg=f_g,
-        height=1,
-        width=8,
-        command=reset_offset,
-    ).pack(padx=1, pady=1)
-    d_x, d_y, dxstr, dystr = pixel2dxdy(offset[0], offset[1])
-
-    tk.Label(window, text="Offset:", bg=b_g, fg=f_g).place(x=10, y=400)
-    tk.Label(window, text="0,0", bg=b_g, fg=f_g, width=6).place(x=60, y=400)
-
-    nex_frame = Frame(window, bg="black")
-    nex_frame.place(x=250, y=766)
-    tk.Button(
-        nex_frame,
-        text="Nexus",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        command=readNexus,
-    ).pack(padx=1, pady=1)
-
-    tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=345, y=770)
-    tk.Label(window, text="Solution", bg=b_g, fg=f_g).place(x=435, y=770)
-    tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=535, y=770)
-    target_frame = Frame(window, bg="black")
-    target_frame.place(x=620, y=766)
-    tk.Button(
-        target_frame,
-        text="Target",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        highlightbackground="red",
-        bd=0,
-        command=readTarget,
-    ).pack(padx=1, pady=1)
-
-    dis_frame = Frame(window, bg="black")
-    dis_frame.place(x=800, y=765)
-    tk.Button(
-        dis_frame,
-        text="Display",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="red",
-        bd=0,
-        width=8,
-        command=image_show,
-    ).pack(padx=1, pady=1)
-    lock = StringVar()
-    lock.set("0")
-    tk.Checkbutton(
-        dis_frame,
-        text="Scope centre",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=10,
-        variable=lock,
-    ).pack(padx=1, pady=1)
-    zoom = StringVar()
-    zoom.set("0")
-    tk.Checkbutton(
-        dis_frame,
-        text="zoom x2",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=10,
-        variable=zoom,
-    ).pack(padx=1, pady=1)
-    flip = StringVar()
-    flip.set("0")
-    tk.Checkbutton(
-        dis_frame,
-        text="flip",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=10,
-        variable=flip,
-    ).pack(padx=1, pady=1)
-    mirror = StringVar()
-    mirror.set("0")
-    tk.Checkbutton(
-        dis_frame,
-        text="mirror",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=10,
-        variable=mirror,
-    ).pack(padx=1, pady=1)
-    auto_rotate = StringVar()
-    auto_rotate.set("0")
-    tk.Checkbutton(
-        dis_frame,
-        text="auto-rotate",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=10,
-        variable=auto_rotate,
-    ).pack(padx=1, pady=1)
-    manual_rotate = StringVar()
-    manual_rotate.set("1")
-    tk.Checkbutton(
-        dis_frame,
-        text="rotate angle",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=10,
-        variable=manual_rotate,
-    ).pack(padx=1, pady=1)
-    angle = StringVar()
-    angle.set("0")
-    tk.Entry(
-        dis_frame,
-        textvariable=angle,
-        bg="red",
-        fg=b_g,
-        highlightbackground="red",
-        bd=0,
-        width=5,
-    ).pack(padx=10, pady=1)
-
-    ann_frame = Frame(window, bg="black")
-    ann_frame.place(x=950, y=765)
-    tk.Button(
-        ann_frame,
-        text="Annotate",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="red",
-        bd=0,
-        width=6,
-        command=annotate_image,
-    ).pack(padx=1, pady=1)
-    bright = StringVar()
-    bright.set("0")
-    tk.Checkbutton(
-        ann_frame,
-        text="Bright",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=8,
-        variable=bright,
-    ).pack(padx=1, pady=1)
-    hip = StringVar()
-    hip.set("0")
-    tk.Checkbutton(
-        ann_frame,
-        text="Hip",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=8,
-        variable=hip,
-    ).pack(padx=1, pady=1)
-    hd = StringVar()
-    hd.set("0")
-    tk.Checkbutton(
-        ann_frame,
-        text="H-D",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=8,
-        variable=hd,
-    ).pack(padx=1, pady=1)
-    ngc = StringVar()
-    ngc.set("0")
-    tk.Checkbutton(
-        ann_frame,
-        text="ngc/ic",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=8,
-        variable=ngc,
-    ).pack(padx=1, pady=1)
-    abell = StringVar()
-    abell.set("0")
-    tk.Checkbutton(
-        ann_frame,
-        text="Abell",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=8,
-        variable=abell,
-    ).pack(padx=1, pady=1)
-    tycho2 = StringVar()
-    tycho2.set("0")
-    tk.Checkbutton(
-        ann_frame,
-        text="Tycho2",
-        bg=b_g,
-        fg=f_g,
-        activebackground="red",
-        anchor="w",
-        highlightbackground="black",
-        bd=0,
-        width=8,
-        variable=tycho2,
-    ).pack(padx=1, pady=1)
-
-    options_frame = Frame(window, bg="black")
-    options_frame.place(x=20, y=270)
-
-    polaris = StringVar()
-    polaris.set("0")
-    tk.Checkbutton(
-        options_frame,
-        text="Polaris image",
-        width=13,
-        anchor="w",
-        highlightbackground="black",
-        activebackground="red",
-        bg=b_g,
-        fg=f_g,
-        variable=polaris,
-    ).pack(padx=1, pady=1)
-    test = StringVar()
-    test.set(param["Test mode"])
-    tk.Checkbutton(
-        options_frame,
-        text="M31 image",
+    text="M31 image",
         width=13,
         anchor="w",
         highlightbackground="black",
@@ -1874,12 +1452,13 @@ def main(realHandpad, realNexus):
         width=20,
         variable=EP,
     ).pack(padx=1, pady=2)
+    global EPlength
     EPlength = StringVar()
     EPlength.set(float(param["default_eyepiece"]))
     for i in range(len(eye_piece)):
         tk.Radiobutton(
             EP_frame,
-            text="FOV indicator",
+            text=eye_piece[i][0],
             bg=b_g,
             fg=f_g,
             activebackground="red",
@@ -1887,27 +1466,12 @@ def main(realHandpad, realNexus):
             highlightbackground="black",
             bd=0,
             width=20,
-            variable=EP,
-        ).pack(padx=1, pady=2)
-        EPlength = StringVar()
-        EPlength.set(float(param["default_eyepiece"]))
-        for i in range(len(eye_piece)):
-            tk.Radiobutton(
-                EP_frame,
-                text=eye_piece[i][0],
-                bg=b_g,
-                fg=f_g,
-                activebackground="red",
-                anchor="w",
-                highlightbackground="black",
-                bd=0,
-                width=20,
-                value=eye_piece[i][1] * eye_piece[i][2],
-                variable=EPlength,
-            ).pack(padx=1, pady=0)
-        get_offset()
-        window.protocol("WM_DELETE_WINDOW", on_closing)
-        window.mainloop()
+            value=eye_piece[i][1] * eye_piece[i][2],
+            variable=EPlength,
+        ).pack(padx=1, pady=0)
+    get_offset()
+    window.protocol("WM_DELETE_WINDOW", on_closing)
+    window.mainloop()
 
 
 if __name__ == "__main__":
@@ -1923,6 +1487,9 @@ if __name__ == "__main__":
         "-fn", "--fakenexus", help="Use a fake nexus", default=False, action='store_true', required=False
     )
     parser.add_argument(
+        "-fc", "--fakecamera", help="Use a fake camera", default=False, action='store_true', required=False
+    )
+    parser.add_argument(
         "-x", "--verbose", help="Set logging to debug mode", action="store_true"
     )
     args = parser.parse_args()
@@ -1930,4 +1497,4 @@ if __name__ == "__main__":
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    main(not args.fakehandpad, not args.fakenexus)
+    main(not args.fakehandpad, not args.fakenexus, args.fakecamera)
