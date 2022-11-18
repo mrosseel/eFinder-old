@@ -16,6 +16,7 @@ tk = "^0.1.0"
 pyserial = "^3.5"
 zwoasi = "^0.1.0.1"
 argparse = "^1.4.0"
+serial = "^0.0.97"
 
 [tool.poetry.group.dev.dependencies]
 #serial = "^0.0.97"

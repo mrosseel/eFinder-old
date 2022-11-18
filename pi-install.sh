@@ -26,6 +26,7 @@ mkdir Solver
 mkdir Solver/images
 mkdir Solver/Stills
 cd eFinder
+cp *.jpg ~/Solver
 poetry install
 poetry shell
 python eFinderVNCGui.py -fn -fh
