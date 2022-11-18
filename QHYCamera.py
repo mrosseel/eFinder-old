@@ -30,9 +30,9 @@ class QHYCamera(CameraInterface):
         if self.camType == "not found":
             return
         camera = qhyccd.qhyccd()
-        ident = camera.connect(0x02).decode("UTF-8")[0:9]
+        ident = camera.connect(0x02).decode('UTF-8')[0:9]
         self.handpad.display("QHY camera found", ident, "")
-        print("Found camera:", ident)
+        print('Found camera:',ident)
 
     def capture(
         self, exposure_time: float, gain: float, radec: str, m13: bool, polaris: bool
@@ -52,7 +52,7 @@ class QHYCamera(CameraInterface):
 
         timestr = time.strftime("%Y%m%d-%H%M%S")
         camera.SetGain(gain)
-        camera.SetExposure(exposure_time / 1000)  # milliseconds
+        camera.SetExposure(exposure_time/1000)  # milliseconds
 
         if m13 == True:
             copyfile(
@@ -67,7 +67,7 @@ class QHYCamera(CameraInterface):
             print("using Polaris")
         else:
             img = camera.GetSingleFrame()
-            cv2.imwrite(self.home_path + "/Solver/images/capture.jpg", img)
+            cv2.imwrite(self.home_path + "/Solver/images/capture.jpg",img)
             copyfile(
                 self.home_path + "/Solver/images/capture.jpg",
                 self.home_path + "/Solver/Stills/" + timestr + "_" + radec + ".jpg",

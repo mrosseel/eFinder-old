@@ -27,6 +27,7 @@
     - [How to work with the handpad](#how-to-work-with-the-handpad)
       - [In the VNC GUI version](#in-the-vnc-gui-version)
       - [In the handpad version](#in-the-handpad-version)
+  - [Development environment](#development-environment)
 
 ## Source code
 
@@ -61,12 +62,12 @@ As I live in Belgium, this section is very Europe-centric.  I ordered the ASI ca
 
 - Remove the micro SD card from the Nexus DSC Pro.
 - Insert the micro SD card into a card reader of your computer.
-- Copy the firmware image (nxpro.fw) from the google drive to the micro SD card.  This is a not yet released version (1.1.17, the latest version on the website is 1.0.2).  At least version 1.1.17 is needed.
+- Make sure that at least version 1.1.18 of the firmware is installed on your Nexus DSC Pro.  If this is not the case, download the latest version of the firmware from the Nexus DSC pro webpage and copy the firmware image (nxpro.fw) to the micro SD card.
 - Make sure you properly eject the micro SD card from your computer.
 - Insert the micro SD card back into the slot of the Nexus DSC Pro.
 - Press and hold the OK button and turn the Nexus DSC Pro.
 - A screen is shown asking if it is OK to update the firmware.  Press OK and wait till the update is completed.
-- In the info menu, the correct version of the firmware should be shown (1.1.16).
+- In the info menu, the correct version of the firmware should be shown (1.1.18).
 
 ### Network settings on the Nexus DSC Pro
 
