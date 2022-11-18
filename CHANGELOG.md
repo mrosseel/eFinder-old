@@ -3,7 +3,7 @@
 ## Version 16_4
 [Mike Rosseel]
 - Introduced argparse to eFinderVNCGui.py to make CLI configuration easier, and later down the road merge it with eFinder.py
-- Added Debug classes for Camera and Nexus, so that the program can be started without these attached.
+- Added Debug classes for Camera, Handpad and Nexus, so that the program can be started without these attached.
 - added poetry dependency management
 
 ## Version 16_3
