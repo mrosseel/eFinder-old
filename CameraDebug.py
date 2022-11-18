@@ -23,12 +23,10 @@ class CameraDebug:
         gain (float): The gain
         radec (str)"""
         if m13 == True:
-            logging.debug("Capturing debug image of m13")
-            print("m13")
-            copyfile(Path(self.home, "/Solver/test.jpg"), Path(
-                self.home, "/Solver/images/capture.jpg"))
+            logging.info("Capturing debug image of m13")
+            copyfile(Path(self.home, "Solver/test.jpg"), Path(self.home, "Solver/images/capture.jpg"))
         elif polaris == True:
-            logging.debug("Capturing debug image of Polaris")
+            logging.info("Capturing debug image of Polaris")
             self.copy_polaris()
         else:
             logging.warning("No debug image was selected, choosing polaris")
