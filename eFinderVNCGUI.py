@@ -21,30 +21,23 @@ import time
 import os
 import sys
 import glob
-from os import path
 import math
 from HandpadDebug import HandpadDebug
 from NexusDebug import NexusDebug
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 from PIL.Image import Resampling
-from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
-from shutil import copyfile
-import socket
 import select
 import re
 from skyfield.api import load, Star, wgs84
 from pathlib import Path
-import csv
 import fitsio
 from fitsio import FITS, FITSHDR
 import threading
 import Nexus
 import Coordinates
 import Display
-import CameraInterface
-import ASICamera
 import logging
 import argparse
 
