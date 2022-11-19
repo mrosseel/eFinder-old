@@ -338,6 +338,8 @@ The changelog of the software can be found [here](CHANGELOG.md).
 
 ## Development environment
 
+### Poetry
+
 *[Install poetry][https://python-poetry.org/docs/#installation] to manage the python dependencies.*
 
 Install the dependencies and the virtual environment (do this once):
@@ -347,3 +349,16 @@ Install the dependencies and the virtual environment (do this once):
 Activate a python virtual environment (do this every time):
 
 `poetry shell`
+
+### Docker
+
+Building the image:
+```docker build --no-cache --platform linux/arm64/v8  -t efinder .```
+
+Running the image:
+```docker run -d --name efinder-test efinder```
+
+Accessing the running image:
+```docker exec -it efinder-test bash```
+
+
