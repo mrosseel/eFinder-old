@@ -1,4 +1,4 @@
-#/bin/sh
+#!/bin/sh
 sudo apt update && sudo apt upgrade
 sudo apt install -y netatalk
 sudo echo '[Homes]' >> /etc/netatalk/afp.conf 

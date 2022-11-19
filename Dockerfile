@@ -7,4 +7,4 @@ RUN adduser efinder sudo
 USER efinder
 WORKDIR /home/efinder
 
-
+ENTRYPOINT ["tail", "-f", "/dev/null"]
