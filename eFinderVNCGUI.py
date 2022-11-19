@@ -40,6 +40,7 @@ import Coordinates
 import Display
 import logging
 import argparse
+from platesolve import PlateSolve
 
 version = "16_4_VNC"
 # comment out if this is the autoboot program
@@ -198,7 +199,7 @@ def readNexus():
 
 
 def capture():
-    global polaris, test, radec, gain, exposure
+    global polaris, test, radec, gain, exposure, platesolve, camera
     if test.get() == "1":
         m13 = True
         polaris_cap = False
@@ -217,63 +218,11 @@ def capture():
         polaris_cap,
     )
     image_show()
+    result, elapsed_time = platesolve.solve_image()
+    elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
 
 
-def solveImage():
-    global solved, scopeAlt, star_name, star_name_offset, solved_radec, solved_altaz
-    scale_low = str(pix_scale * 0.9)
-    scale_high = str(pix_scale * 1.1)
-    name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
-    limitOptions = [
-        "--overwrite",  # overwrite any existing files
-        "--skip-solved",  # skip any files we've already solved
-        "--cpulimit",
-        # limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-        "5",
-    ]
-    optimizedOptions = [
-        "--downsample",
-        "2",  # downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
-        # Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
-        "--no-remove-lines",
-        "--uniformize",
-        "0",  # Saves ~1.25 sec. Just process the image as-is
-    ]
-    scaleOptions = [
-        "--scale-units",
-        "arcsecperpix",  # next two params are in arcsecs. Supplying this saves ~0.5 sec
-        "--scale-low",
-        scale_low,  # See config above
-        "--scale-high",
-        scale_high,  # See config above
-    ]
-    fileOptions = [
-        "--new-fits",
-        "none",  # Don't create a new fits
-        "--solved",
-        "none",  # Don't generate the solved output
-        "--rdls",
-        "none",  # Don't generate the point list
-        "--match",
-        "none",  # Don't generate matched output
-        "--corr",
-        "none",  # Don't generate .corr files
-    ]
-    # "--temp-axy" We can't specify not to create the axy list, but we can write it to /tmp
-    cmd = ["solve-field"]
-    captureFile = home_path + "/Solver/images/capture.jpg"
-    options = (
-        limitOptions + optimizedOptions +
-        scaleOptions + fileOptions + [captureFile]
-    )
-    start_time = time.time()
-    result = subprocess.run(
-        cmd + name_that_star + options, capture_output=True, text=True
-    )
-    elapsed_time = time.time() - start_time
-    # print (result.stdout)
-    elapsed_time = "elapsed time " + str(elapsed_time)[0:4] + " sec"
-    tk.Label(window, text=elapsed_time, width=20, anchor="e", bg=b_g, fg=f_g).place(
+    tk.Label(window, text=elapsed_time_str, width=20, anchor="e", bg=b_g, fg=f_g).place(
         x=315, y=936
     )
     result = str(result.stdout)
@@ -922,11 +871,12 @@ def pick_camera(camera_type):
 def main(realHandpad, realNexus, fakeCamera):
     logging.info(f"Starting eFinder version {version}...")
     # main code starts here
-    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to
+    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
     nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(
         handpad, coordinates)
+    platesolve = PlateSolve(pix_scale)
     NexStr = nexus.get_nex_str()
     param = dict()
     get_param(Path(".", "eFinder.config"))
