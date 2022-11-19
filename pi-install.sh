@@ -1,33 +1,41 @@
 #!/bin/sh
-sudo apt update && sudo apt upgrade
-sudo apt install -y netatalk
-sudo echo '[Homes]' >> /etc/netatalk/afp.conf 
-sudo echo 'basedir regex = /home' >> /etc/netatalk/afp.conf  
-sudo systemctl restart netatalk
-sudo apt install -y python3-dev gcc cargo rustc libssl-dev # needed for poetry install
-sudo apt install -y libatlas-base-dev python3-dev # needed for astropy compile
-sudo apt install -y make automake gcc g++ numpy # needed for astrometry.net compile
-sudo apt install -y git pip neovim
-sudo apt install -y libcairo2-dev libnetpbm10-dev netpbm libpng-dev libjpeg-dev zlib1g-dev libbz2-dev swig libcfitsio-dev 
-cd ~ 
-git clone https://github.com/dstndstn/astrometry.net.git
-sudo echo 'export PATH=/home/efinder/.local/bin:$PATH' >> /etc/profile
+HOME=/home/efinder
+apt update && sudo apt upgrade
+apt install -y netatalk
+echo '[Homes]' >> /etc/netatalk/afp.conf
+echo 'basedir regex = /home' >> /etc/netatalk/afp.conf
+systemctl restart netatalk
+apt install -y python3-dev gcc cargo rustc libssl-dev # needed for poetry install
+apt install -y libatlas-base-dev python3-dev # needed for astropy compile
+apt install -y make automake gcc g++ # needed for astrometry.net compile
+apt install -y git pip neovim wget
+apt install -y libcairo2-dev libnetpbm10-dev netpbm libpng-dev libjpeg-dev zlib1g-dev libbz2-dev swig libcfitsio-dev
+cd $HOME
+sudo -u efinder git clone https://github.com/dstndstn/astrometry.net.git
+curl -sSL https://install.python-poetry.org | python3 -
+echo 'export PATH="/home/efinder/.local/bin:$PATH"' >> /etc/profile
 source /etc/profile
-#curl -sSL https://install.python-poetry.org | python3 -
-sudo pip install poetry
-cd ~/astrometry.net
+sudo -u efinder python3 -m pip install --upgrade pip
+sudo -u efinder pip install numpy==1.22.0
+cd $HOME/astrometry.net
 make
 make py
 make extra
 sudo make install
 export PATH=$PATH:/usr/local/astrometry/bin
-cd ~ 
-mkdir Solver
-mkdir Solver/images
-mkdir Solver/Stills
-cd ~/eFinder
-cp *.jpg ~/Solver
-poetry install
-poetry shell
+cd /usr/local/astrometry/data
+wget http://data.astrometry.net/4100/index-4107.fits
+wget http://data.astrometry.net/4100/index-4108.fits
+wget http://data.astrometry.net/4100/index-4109.fits
+wget http://data.astrometry.net/4100/index-4110.fits
+wget http://data.astrometry.net/4100/index-4111.fits
+cd $HOME
+sudo -u efinder mkdir Solver
+sudo -u efinder mkdir Solver/images
+sudo -u efinder mkdir Solver/Stills
+cd $HOME/eFinder
+cp *.jpg $HOME/Solver
+sudo -u efinder poetry install
+sudo -u efinder SHELL=/bin/bash poetry shell
 echo "now install the ASI/QHY drivers and when ready run the following command to test everything:"
 echo "python eFinderVNCGui.py"
