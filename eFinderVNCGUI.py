@@ -218,9 +218,11 @@ def capture():
         polaris_cap,
     )
     image_show()
+
+
+def solveImage():
     result, elapsed_time = platesolve.solve_image()
     elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
-
 
     tk.Label(window, text=elapsed_time_str, width=20, anchor="e", bg=b_g, fg=f_g).place(
         x=315, y=936
