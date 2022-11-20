@@ -338,6 +338,8 @@ The changelog of the software can be found [here](CHANGELOG.md).
 
 ## Development environment
 
+### Poetry
+
 *[Install poetry][https://python-poetry.org/docs/#installation] to manage the python dependencies.*
 
 Install the dependencies and the virtual environment (do this once):
@@ -352,5 +354,16 @@ Run the VNC Gui version of the app without having a handpad, a camera or a nexus
 (The headless version has no command line options at the moment)
 
 `python eFinderVNCGui.py -fh -fn -fc`
+
+### Docker
+
+Building the image:
+```docker build --no-cache --platform linux/arm64/v8  -t efinder .```
+
+Running the image:
+```docker run -d --name efinder-test efinder```
+
+Accessing the running image:
+```docker exec -it efinder-test bash```
 
 
