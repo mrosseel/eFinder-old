@@ -221,7 +221,8 @@ def capture():
 
 
 def solveImage():
-    result, elapsed_time = platesolve.solve_image()
+    global offset_flag
+    result, elapsed_time = platesolve.solve_image(offset_flag)
     elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
 
     tk.Label(window, text=elapsed_time_str, width=20, anchor="e", bg=b_g, fg=f_g).place(
