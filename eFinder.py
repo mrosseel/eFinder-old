@@ -33,7 +33,7 @@ import ASICamera
 import CameraInterface
 
 home_path = str(Path.home())
-version = "16_3"
+version = "16_4"
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
@@ -575,15 +575,13 @@ if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
 
-if param["Camera Type ('QHY' or 'ASI')"] == "ASI":
+camera_type = param["Camera Type"]
+if camera_type == "ASI":
     import ASICamera
-
     camera = ASICamera.ASICamera(handpad)
-elif param["Camera Type ('QHY' or 'ASI')"] == "QHY":
+elif camera_type == "QHY":
     import QHYCamera
-
     camera = QHYCamera.QHYCamera(handpad)
-
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""

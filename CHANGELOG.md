@@ -1,5 +1,11 @@
 # Changelog for eFinder software
 
+## Version 16_4
+[Mike Rosseel]
+- Introduced argparse to eFinderVNCGui.py to make CLI configuration easier, and later down the road merge it with eFinder.py
+- Added Debug classes for Camera, Handpad and Nexus, so that the program can be started without these attached.
+- added poetry dependency management
+
 ## Version 16_3
 [Keith Venables]
 - Resolved problem with Nexus DSC not returning its own GoTo target coordinates (using LX200 protocol). New Nexus firmware released on 17th Nov 2022

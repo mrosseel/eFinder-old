@@ -350,6 +350,11 @@ Activate a python virtual environment (do this every time):
 
 `poetry shell`
 
+Run the VNC Gui version of the app without having a handpad, a camera or a nexus device. 
+(The headless version has no command line options at the moment)
+
+`python eFinderVNCGui.py -fh -fn -fc`
+
 ### Docker
 
 Building the image:

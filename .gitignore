@@ -3,3 +3,6 @@ annotate_data
 .dccache
 *.pyc
 *.bsp
+*.lock
+*.log
+
