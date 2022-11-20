@@ -5,7 +5,7 @@ import logging
 
 
 class PlateSolve:
-    def __init__(self, pix_scale, tmp_dir='/var/tmp') -> None:
+    def __init__(self, pix_scale, tmp_dir='/var/tmp/') -> None:
         self.home_path = str(Path.home())
         self.scale_low = str(pix_scale * 0.9)
         self.scale_high = str(pix_scale * 1.1)
@@ -38,13 +38,13 @@ class PlateSolve:
             "--new-fits", "none",  # Don't create a new fits
             "--solved", "none",  # Don't generate the solved output
             "--match", "none",  # Don't generate matched output
-            "--wcs", "none", # don't generate wcs files
+            # "--wcs", "none", # would like to turn this off, but we need to generate wcs for some advanced features which might be turned off...
             "--corr", "none",  # Don't generate .corr files
             "--rdls", "none",  # Don't generate the point list
-            "--temp-axy", "none" # We can't specify not to create the axy list, but we can write it to temp dir
+            "--temp-axy" # We can't specify not to create the axy list, but we can write it to temp dir
         ]
         self.cmd = ["solve-field"]
-        self.captureFile = self.home_path + "/Solver/images/capture.jpg"
+        self.captureFile = self.tmp_dir + "capture.jpg"
         self.options = (
             self.limitOptions + self.optimizedOptions +
             self.scaleOptions + self.fileOptions + [self.captureFile]
@@ -59,6 +59,7 @@ class PlateSolve:
         result = subprocess.run(
             self.cmd + name_that_star + self.options, capture_output=True, text=True
         )
+        logging.debug(f"platesolve result is: {result}")
         logging.debug(f"platesolve command is: {self.cmd + name_that_star + self.options}")  
         elapsed_time = time.time() - start_time
         # print (result.stdout)

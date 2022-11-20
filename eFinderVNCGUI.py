@@ -47,6 +47,7 @@ version = "16_4_VNC"
 os.system("pkill -9 -f eFinder.py")
 
 home_path = str(Path.home())
+images_dir = '/var/tmp/'
 
 
 deltaAz = deltaAlt = 0
@@ -122,7 +123,7 @@ def xy2rd(x, y):  # returns the RA & Dec (J2000) corresponding to an image x,y p
         [
             "wcs-xy2rd",
             "-w",
-            home_path + "/Solver/images/capture.wcs",
+            images_dir + "capture.wcs",
             "-x",
             str(x),
             "-y",
@@ -248,7 +249,7 @@ def solveImage():
         return
     if offset_flag == True:
         table, h = fitsio.read(
-            home_path + "/Solver/images/capture.axy", header=True)
+            images_dir + "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         # print('(capture.axy gives) x,y',table[0][0],table[0][1])
         if "The star" in result:
@@ -321,7 +322,7 @@ def applyOffset():  # creates & returns a 'Skyfield star object' at the set offs
 
 def image_show():
     global manual_angle, img3, EPlength
-    img2 = Image.open(home_path + "/Solver/images/capture.jpg")
+    img2 = Image.open(images_dir + "capture.jpg")
     width, height = img2.size
     img2 = img2.resize((1014, 760), Resampling.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
@@ -388,7 +389,7 @@ def annotate_image():
     scale_low = str(pix_scale * 0.9 * 1.2)  # * 1.2 is because image has been resized for the display panel
     scale_high = str(pix_scale * 1.1 * 1.2)
     image_show()
-    img3 = img3.save(home_path + "/Solver/images/adjusted.jpg")
+    img3 = img3.save(images_dir + "adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
     os.system(
         "solve-field --no-plots --new-fits none --solved none --match none --corr none \
@@ -399,8 +400,8 @@ def annotate_image():
             --scale-high "
         + scale_high
         + " "
-        + home_path
-        + "/Solver/images/adjusted.jpg"
+        + images_dir
+        + "ages/adjusted.jpg"
     )
     # now we can annotate the image adjusted.jpg
     opt1 = " " if bright.get() == "1" else " --no-bright"
@@ -437,18 +438,18 @@ def annotate_image():
             + opt6
             + " \
             "
-            + home_path
-            + "/Solver/images/adjusted.wcs "
-            + home_path
-            + "/Solver/images/adjusted.jpg "
-            + home_path
-            + "/Solver/images/adjusted_out.jpg"
+            + images_dir
+            + "ages/adjusted.wcs "
+            + images_dir
+            + "ages/adjusted.jpg "
+            + images_dir
+            + "ages/adjusted_out.jpg"
         )
     except:
         pass
-    if os.path.exists(home_path + "/Solver/images/adjusted_out.jpg") == True:
-        img3 = Image.open(home_path + "/Solver/images/adjusted_out.jpg")
-        filelist = glob.glob(home_path + "/Solver/images/adjusted*.*")
+    if os.path.exists(images_dir + "adjusted_out.jpg") == True:
+        img3 = Image.open(images_dir + "adjusted_out.jpg")
+        filelist = glob.glob(images_dir + "adjusted*.*")
         for filePath in filelist:
             try:
                 os.remove(filePath)

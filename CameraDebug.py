@@ -8,6 +8,7 @@ class CameraDebug:
 
     def __init__(self):
         self.home = Path.home()
+        self.images_dir = '/var/tmp/'
 
     def initialize(self) -> None:
         """Initializes the camera and set the needed control parameters"""
@@ -24,7 +25,7 @@ class CameraDebug:
         radec (str)"""
         if m13 == True:
             logging.info("Capturing debug image of m13")
-            copyfile(Path(self.home, "Solver/test.jpg"), Path(self.home, "Solver/images/capture.jpg"))
+            copyfile(Path(self.home, "Solver/test.jpg"), Path(self.images_dir, "capture.jpg"))
         elif polaris == True:
             logging.info("Capturing debug image of Polaris")
             self.copy_polaris()
@@ -34,7 +35,7 @@ class CameraDebug:
 
     def copy_polaris(self):
         copyfile(Path(self.home, "Solver/polaris.jpg"),
-                 Path(self.home, "Solver/images/capture.jpg"))
+                 Path(self.images_dir, "capture.jpg"))
 
     def get_cam_type(self) -> str:
         """Return the type of the camera
