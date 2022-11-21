@@ -333,7 +333,7 @@ def image_show():
 
 
 def annotate_image():
-    global img3
+    global img3, bright, hip, hd, abell, ngc, tycho2
     scale_low = str(pix_scale * 0.9 * 1.2)  # * 1.2 is because image has been resized for the display panel
     scale_high = str(pix_scale * 1.1 * 1.2)
     image_show()
@@ -798,7 +798,7 @@ def do_button(event):
 def main(realHandpad, realNexus, fakeCamera):
     logging.info(f"Starting eFinder version {version}...")
     # main code starts here
-    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, camera_debug, polaris, m31, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common
+    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, camera_debug, polaris, m31, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common, bright, hip, hd, abell, tycho2, ngc
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
     nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
