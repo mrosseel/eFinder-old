@@ -5,7 +5,7 @@ import logging
 
 
 class PlateSolve:
-    def __init__(self, pix_scale, tmp_dir='/var/tmp/') -> None:
+    def __init__(self, pix_scale, tmp_dir='/dev/shm/') -> None:
         self.home_path = str(Path.home())
         self.scale_low = str(pix_scale * 0.9)
         self.scale_high = str(pix_scale * 1.1)
@@ -15,11 +15,11 @@ class PlateSolve:
             "--skip-solved",  # skip any files we've already solved
             "--cpulimit",
             # limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-            "5",
+            "10",
         ]
         self.optimizedOptions = [
             "--downsample",
-            "4",  # downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
+            "2",  # downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
             # Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
             "--no-remove-lines",
             "--uniformize",
@@ -59,10 +59,9 @@ class PlateSolve:
         result = subprocess.run(
             self.cmd + name_that_star + self.options, capture_output=True, text=True
         )
+        elapsed_time = time.time() - start_time
         logging.debug(f"platesolve result is: {result}")
         logging.debug(f"platesolve command is: {self.cmd + name_that_star + self.options}")  
-        elapsed_time = time.time() - start_time
-        # print (result.stdout)
         logging.debug(f"Platesolve elapsed time is {elapsed_time:.2f}")
         return result, elapsed_time
 

@@ -7,18 +7,20 @@ import Display
 import cv2
 import qhyccd
 from ctypes import *
+from typing import Dict
 
 
 class QHYCamera(CameraInterface):
     """The camera class for ZWO cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display) -> None:
+    def __init__(self, handpad: Display, images_dir) -> None:
         """Initializes the QHY camera
 
         Parameters:
         handpad (Display): The link to the handpad"""
 
         self.home_path = str(Path.home())
+        self.images_dir = images_dir 
         self.handpad = handpad
         self.camType = "QHY"
         self.initialize()
@@ -35,7 +37,7 @@ class QHYCamera(CameraInterface):
         print('Found camera:',ident)
 
     def capture(
-        self, exposure_time: float, gain: float, radec: str, m13: bool, polaris: bool
+            self, exposure_time: float, gain: float, radec: str, extra: Dict 
     ) -> None:
         """Capture an image with the camera
 
@@ -54,25 +56,12 @@ class QHYCamera(CameraInterface):
         camera.SetGain(gain)
         camera.SetExposure(exposure_time/1000)  # milliseconds
 
-        if m13 == True:
-            copyfile(
-                self.home_path + "/Solver/test.jpg",
-                self.home_path + "/Solver/images/capture.jpg",
-            )
-        elif polaris == True:
-            copyfile(
-                self.home_path + "/Solver/polaris.jpg",
-                self.home_path + "/Solver/images/capture.jpg",
-            )
-            print("using Polaris")
-        else:
-            img = camera.GetSingleFrame()
-            cv2.imwrite(self.home_path + "/Solver/images/capture.jpg",img)
-            copyfile(
-                self.home_path + "/Solver/images/capture.jpg",
-                self.home_path + "/Solver/Stills/" + timestr + "_" + radec + ".jpg",
-            )
-
+        img = camera.GetSingleFrame()
+        cv2.imwrite(Path(self.images_dir, "capture.jpg"),img)
+        copyfile(
+            Path(self.images_dir + "capture.jpg"),
+            Path(self.images_dir + "/Solver/Stills/" + timestr + "_" + radec + ".jpg"),
+        )
         return
 
     def get_cam_type(self) -> str:
