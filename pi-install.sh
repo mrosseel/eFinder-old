@@ -29,12 +29,7 @@ wget http://data.astrometry.net/4100/index-4108.fits
 wget http://data.astrometry.net/4100/index-4109.fits
 wget http://data.astrometry.net/4100/index-4110.fits
 wget http://data.astrometry.net/4100/index-4111.fits
-cd $HOME
-sudo -u efinder mkdir Solver
-sudo -u efinder mkdir Solver/images
-sudo -u efinder mkdir Solver/Stills
 cd $HOME/eFinder
-cp *.jpg *.jpeg $HOME/Solver
 sudo -u efinder poetry install
 sudo -u efinder SHELL=/bin/bash poetry shell
 echo "now install the ASI/QHY drivers and when ready run the following command to test everything:"

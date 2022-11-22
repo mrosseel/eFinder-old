@@ -37,7 +37,6 @@ import utils
 cwd_path: Path = Path.cwd() 
 images_path: Path = Path("/dev/shm/images")
 utils.create_dir(images_path) # create dir if it doesn't yet exist
-version = "16_4"
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
@@ -50,7 +49,8 @@ solve = False
 sync_count = 0
 pix_scale = 15
 platesolve = PlateSolve(pix_scale, images_path)
-common = Common(cwd_path=cwd_path, images_path=images_path, pix_scale=pix_scale)
+common = Common(cwd_path=cwd_path, images_path=images_path, pix_scale=pix_scale, version_suffix="")
+version = common.get_version()
 
 def imgDisplay():  # displays the captured image on the Pi desktop.
     for proc in psutil.process_iter():

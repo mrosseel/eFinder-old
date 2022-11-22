@@ -4,15 +4,19 @@ from skyfield.api import load, Star, wgs84
 import math
 from pathlib import Path
 
+version_string = "16_5"
 
 class Common:
 
-    def __init__(self, cwd_path, images_path, pix_scale) -> None:
+    def __init__(self, cwd_path: Path, images_path: Path, pix_scale, version_suffix: str) -> None:
        self.home_path = cwd_path 
        self.images_path = images_path
        self.pix_scale = pix_scale
        self.ts = load.timescale()
+       self.version = version_string + version_suffix 
 
+    def get_version(self):
+        return self.version
 
     # returns the RA & Dec (J2000) corresponding to an image x,y pixel
     def xy2rd(self, x, y): 
@@ -85,16 +89,16 @@ class Common:
         delta_alt = 60 * (delta_alt)  # in arcminutes
         return delta_az, delta_alt 
 
-    def pick_camera(self, camera_type, handpad, images_dir):
+    def pick_camera(self, camera_type, handpad, images_path):
         camera = None
         if camera_type == 'ASI':
             import ASICamera
-            camera = ASICamera.ASICamera(handpad, images_dir)
+            camera = ASICamera.ASICamera(handpad, images_path)
         elif camera_type == 'QHY':
             import QHYCamera
             camera = QHYCamera.QHYCamera(handpad)
         elif camera_type == 'TEST':
             import CameraDebug
-            camera = CameraDebug.CameraDebug(images_dir)
+            camera = CameraDebug.CameraDebug(images_path)
         return camera
 

@@ -12,14 +12,14 @@ from typing import Dict
 class QHYCamera(CameraInterface):
     """The camera class for ZWO cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, images_dir='/dev/shm/images', home_path=Path.cwd()) -> None:
+    def __init__(self, handpad: Display, images_path=Path('/dev/shm/images'), home_path=Path.cwd()) -> None:
         """Initializes the QHY camera
 
         Parameters:
         handpad (Display): The link to the handpad"""
 
         self.home_path = home_path 
-        self.images_dir = images_dir 
+        self.images_path = images_path 
         self.handpad = handpad
         self.camType = "QHY"
         self.initialize()
@@ -56,11 +56,11 @@ class QHYCamera(CameraInterface):
         camera.SetExposure(exposure_time/1000)  # milliseconds
 
         img = camera.GetSingleFrame()
-        capture_path = Path(self.images_dir, "capture.jpg")
+        capture_path = self.images_path / "capture.jpg"
         cv2.imwrite(capture_path,img)
         copyfile(
             capture_path,
-            Path(self.images_dir, "Stills/" + timestr + "_" + radec + ".jpg"),
+            self.images_path / ("Stills/" + timestr + "_" + radec + ".jpg"),
         )
         return
 

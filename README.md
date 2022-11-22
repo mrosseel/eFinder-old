@@ -136,19 +136,11 @@ sudo visudo
 efinder ALL = NOPASSWD: /bin/date, /sbin/reboot
 ```
 
-- Add the needed folders for the eFinder software.
-
-```bash
-mkdir ~/Solver
-mkdir ~/Solver/images/
-mkdir ~/Solver/Stills/
-```
-
 - Checkout the eFinder software from GitHub
 
 ```bash
 cd ~
-git clone git@github.com:WimDeMeester/eFinder.git Solver
+git clone git@github.com:WimDeMeester/eFinder.git eFinder
 ```
 
 - Reboot
@@ -218,7 +210,7 @@ DISPLAY=:0
 - Add the following line to start up the eFinder code automatically:
 
 ```bash
-@reboot sleep 20 && (cd /home/efinder/Solver ; /usr/bin/python /home/efinder/Solver/eFinderVNCGUI_wifi.py >> /home/efinder/logs.txt 2>&1)
+@reboot sleep 20 && (cd /home/efinder/eFinder ; /usr/bin/python /home/efinder/eFinder/eFinderVNCGUI_wifi.py >> /home/efinder/logs.txt 2>&1)
 ```
 
 #### Install RTL8192EU driver for the TP-LINK TL-WN823N

@@ -44,7 +44,6 @@ from platesolve import PlateSolve
 from common import Common
 import utils
 
-version = "16_4_VNC"
 # comment out if this is the autoboot program
 os.system("pkill -9 -f eFinder.py")
 
@@ -797,14 +796,15 @@ def do_button(event):
 
 
 def main(realHandpad, realNexus, fakeCamera):
-    logging.info(f"Starting eFinder version {version}...")
     # main code starts here
-    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, camera_debug, polaris, m31, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common, bright, hip, hd, abell, tycho2, ngc
+    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, camera_debug, polaris, m31, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common, bright, hip, hd, abell, tycho2, ngc, version
+    common = Common(cwd_path, images_path, pix_scale, "_VNC")
+    version = common.get_version()
+    logging.info(f"Starting eFinder version {version}...")
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
     nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
     platesolve = PlateSolve(pix_scale, images_path)
-    common = Common(cwd_path, images_path, pix_scale)
     NexStr = nexus.get_nex_str()
     param = dict()
     get_param(cwd_path / "eFinder.config")

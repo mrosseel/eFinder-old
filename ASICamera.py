@@ -11,15 +11,15 @@ import logging
 class ASICamera(CameraInterface):
     """The camera class for ASI cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, images_dir='/dev/shm/images', home_path=Path.cwd()) -> None:
+    def __init__(self, handpad: Display, images_path=Path('/dev/shm/images'), home_path=Path.cwd()) -> None:
         """Initializes the ASI camera
 
         Parameters:
         handpad (Display): The link to the handpad"""
 
         self.handpad = handpad
-        self.images_dir = images_dir
-        self.home_path = home_path 
+        self.images_path: Path = images_path
+        self.home_path: Path = home_path 
 
         # find a camera
         asi.init("/lib/zwoasi/armv7/libASICamera2.so")
@@ -75,10 +75,10 @@ class ASICamera(CameraInterface):
         timestr = time.strftime("%Y%m%d-%H%M%S")
         camera.set_control_value(asi.ASI_GAIN, gain)
         camera.set_control_value(asi.ASI_EXPOSURE, exposure_time)  # microseconds
-        capture_path = Path(self.images_dir, "capture.jpg")
+        capture_path = self.images_path / "capture.jpg"
         camera.capture(filename=capture_path)
         copyfile( capture_path,
-                Path(self.home_path, "Stills" + timestr + "_" + radec + ".jpg"),
+                self.home_path / ("Stills" + timestr + "_" + radec + ".jpg"),
             )
 
 
