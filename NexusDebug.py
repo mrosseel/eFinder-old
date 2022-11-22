@@ -1,12 +1,7 @@
 from NexusInterface import NexusInterface
 import serial
-import time
-import socket
 from skyfield.api import load, Star, wgs84
 from datetime import datetime, timedelta
-import os
-import math
-import re
 import Display
 import Coordinates
 
@@ -17,13 +12,13 @@ class NexusDebug(NexusInterface):
     handpad = None
     aligned = False
     nexus_link = "none"
-    coordinates = None
     NexStr = "not connected"
     short = "no RADec"
     long = 0
     lat = 0
     radec = [0, 0]
     altaz = [0, 0]
+    scope_alt = 42
 
     def __init__(self, handpad: Display, coordinates: Coordinates) -> None:
         """Initializes the Nexus DSC
@@ -35,11 +30,11 @@ class NexusDebug(NexusInterface):
         self.handpad = handpad
         self.aligned = False
         self.nexus_link = "none"
-        self.coordinates = coordinates
+        self.coordinates: Coordinates = coordinates
         self.NexStr = "not connected"
         self.short = "no RADec"
-        self.long = 0
-        self.lat = 0
+        self.long = 40
+        self.lat = 5
 
     def write(self, txt: str) -> None:
         """Write a message to the Nexus DSC
@@ -58,11 +53,11 @@ class NexusDebug(NexusInterface):
         Returns:
         str:  The requested information from the DSC
         """
-        pass
+        return "11:12:13"
 
     def read(self) -> None:
         """Establishes that Nexus DSC is talking to us and get observer location and time data"""
-        self.location=self.coordinates
+        self.location = self.coordinates.get_earth() + wgs84.latlon(self.lat, self.long)
 
     def read_altAz(self, arr):
         """Read the RA and declination from the Nexus DSC and convert them to altitude and azimuth
@@ -73,18 +68,6 @@ class NexusDebug(NexusInterface):
         Returns:
         np.array: The updated arr variable to show on the handpad
         """
-
-    def __init__(self, handpad: Display, coordinates: Coordinates) -> None:
-        """Initializes the Nexus DSC
-
-        Parameters:
-        handpad (Display): The handpad that is connected to the eFinder
-        coordinates (Coordinates): The coordinates utility class to be used in the eFinder
-        """
-        self.short = "no RADec"
-        self.long = 0
-        self.lat = 0
-        pass
 
     def get_short(self):
         """Returns a summary of RA & Dec for file labelling

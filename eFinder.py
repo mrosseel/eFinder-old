@@ -92,8 +92,8 @@ def solveImage():
 
 
 def deltaCalc():
-    global deltaAz, deltaAlt, elapsed_time
-    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), deltaAz, deltaAlt)
+    global deltaAz, deltaAlt, solved_altaz, scopeAlt, elapsed_time
+    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
     deltaXstr = "{: .2f}".format(float(deltaAz))
     deltaYstr = "{: .2f}".format(float(deltaAlt))
     arr[0, 3][0] = "Delta: x= " + deltaXstr

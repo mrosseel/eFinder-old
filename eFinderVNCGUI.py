@@ -183,7 +183,7 @@ def capture():
 
 
 def solveImage():
-    global offset_flag, scopeAlt
+    global offset_flag, scopeAlt, solved_altaz
     result, elapsed_time = platesolve.solve_image(offset_flag)
     elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
 
@@ -423,8 +423,8 @@ def zoom_at(img, x, y, zoom):
 
 
 def deltaCalcGUI():
-    global deltaAz, deltaAlt
-    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), deltaAz, deltaAlt)
+    global deltaAz, deltaAlt, solved_altaz
+    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
     deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
     deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
     tk.Label(window, width=10, anchor="e", text=deltaAzstr, bg=b_g, fg=f_g).place(

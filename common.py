@@ -70,16 +70,16 @@ class Common:
 
 
 
-    def deltaCalc(nexus_altaz, delta_az, delta_alt):
+    def deltaCalc(self, nexus_altaz, solved_altaz, scope_alt, delta_az, delta_alt):
         deltaAz = solved_altaz[1] - nexus_altaz[1]
         if abs(delta_az) > 180:
             if delta_az < 0:
                 delta_az = delta_az + 360
             else:
                 delta_az = delta_az - 360
-        # print('cosine scopeAlt',math.cos(scopeAlt))
+        # print('cosine scopeAlt',math.cos(scope_alt))
         delta_az = 60 * (
-            delta_az * math.cos(scopeAlt)
+            delta_az * math.cos(scope_alt)
         )  # actually this is delta'x' in arcminutes
         delta_alt = solved_altaz[0] - nexus_altaz[0]
         delta_alt = 60 * (delta_alt)  # in arcminutes
