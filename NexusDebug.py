@@ -9,13 +9,6 @@ import Coordinates
 class NexusDebug(NexusInterface):
     """The Nexus utility class"""
 
-    handpad = None
-    aligned = False
-    nexus_link = "none"
-    NexStr = "not connected"
-    short = "no RADec"
-    long = 0
-    lat = 0
     radec = [0, 0]
     altaz = [0, 0]
     scope_alt = 42
@@ -32,7 +25,7 @@ class NexusDebug(NexusInterface):
         self.nexus_link = "none"
         self.coordinates: Coordinates = coordinates
         self.NexStr = "not connected"
-        self.short = "no RADec"
+        self.short = "no_RADec"
         self.long = 40
         self.lat = 5
 

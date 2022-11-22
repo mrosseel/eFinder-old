@@ -345,11 +345,10 @@ def annotate_image():
             --scale-units arcsecperpix --scale-low "
         + scale_low
         + " \
-            --scale-high "
+        --scale-high "
         + scale_high
         + " "
-        + images_path
-        + "ages/adjusted.jpg"
+        + str(images_path / "adjusted.jpg")
     )
     # now we can annotate the image adjusted.jpg
     opt1 = " " if bright.get() == "1" else " --no-bright"
@@ -386,18 +385,15 @@ def annotate_image():
             + opt6
             + " \
             "
-            + images_path
-            + "ages/adjusted.wcs "
-            + images_path
-            + "ages/adjusted.jpg "
-            + images_path
-            + "ages/adjusted_out.jpg"
+            + str(images_path / "adjusted.wcs")
+            + str(images_path / "adjusted.jpg")
+            + str(images_path / "adjusted_out.jpg")
         )
     except:
         pass
     if os.path.exists(images_path / "adjusted_out.jpg") == True:
         img3 = Image.open(images_path / "adjusted_out.jpg")
-        filelist = glob.glob(images_path / "adjusted*.*")
+        filelist = glob.glob(str(images_path / "adjusted*.*"))
         for filePath in filelist:
             try:
                 os.remove(filePath)
