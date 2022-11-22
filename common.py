@@ -7,9 +7,9 @@ from pathlib import Path
 
 class Common:
 
-    def __init__(self, home_path, tmp_path, pix_scale) -> None:
-       self.home_path = home_path 
-       self.temp_path = tmp_path
+    def __init__(self, cwd_path, images_path, pix_scale) -> None:
+       self.home_path = cwd_path 
+       self.images_path = images_path
        self.pix_scale = pix_scale
        self.ts = load.timescale()
 
@@ -20,7 +20,7 @@ class Common:
             [
                 "wcs-xy2rd",
                 "-w",
-                Path(self.temp_path, "capture.wcs"),
+                Path(self.images_path, "capture.wcs"),
                 "-x",
                 str(x),
                 "-y",

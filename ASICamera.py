@@ -5,12 +5,13 @@ from CameraInterface import CameraInterface
 import zwoasi as asi
 import Display
 from typing import Dict
+import logging
 
 
 class ASICamera(CameraInterface):
     """The camera class for ASI cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, images_dir) -> None:
+    def __init__(self, handpad: Display, images_dir='/dev/shm/images', home_path=Path.cwd()) -> None:
         """Initializes the ASI camera
 
         Parameters:
@@ -18,7 +19,7 @@ class ASICamera(CameraInterface):
 
         self.handpad = handpad
         self.images_dir = images_dir
-        self.home_path = str(Path.home())
+        self.home_path = home_path 
 
         # find a camera
         asi.init("/lib/zwoasi/armv7/libASICamera2.so")
@@ -26,7 +27,7 @@ class ASICamera(CameraInterface):
         if num_cameras == 0:
             self.handpad.display("Error:", " no camera found", "")
             self.camType = "not found"
-            print("camera not found")
+            logging.info("camera not found")
             time.sleep(1)
             exit()
         else:
@@ -35,7 +36,7 @@ class ASICamera(CameraInterface):
             camera_id = 0
             self.initialize()
             self.handpad.display("ZWO camera found", "", "")
-            print("ZWO camera found")
+            logging.info("ZWO camera found")
             time.sleep(1)
 
     def initialize(self) -> None:
@@ -74,9 +75,9 @@ class ASICamera(CameraInterface):
         timestr = time.strftime("%Y%m%d-%H%M%S")
         camera.set_control_value(asi.ASI_GAIN, gain)
         camera.set_control_value(asi.ASI_EXPOSURE, exposure_time)  # microseconds
-
-        camera.capture(filename=Path(self.images_dir, "capture.jpg"))
-        copyfile( Path(self.images_dir + "capture.jpg"),
+        capture_path = Path(self.images_dir, "capture.jpg")
+        camera.capture(filename=capture_path)
+        copyfile( capture_path,
                 Path(self.home_path, "Stills" + timestr + "_" + radec + ".jpg"),
             )
 

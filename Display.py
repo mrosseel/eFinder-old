@@ -1,7 +1,4 @@
-import time
 import serial
-import threading
-import select
 
 
 class Handpad:

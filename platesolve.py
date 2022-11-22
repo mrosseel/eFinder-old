@@ -5,11 +5,11 @@ import logging
 
 
 class PlateSolve:
-    def __init__(self, pix_scale, tmp_dir='/dev/shm/') -> None:
-        self.home_path = str(Path.home())
+    def __init__(self, pix_scale, images_path: Path=Path('/dev/shm/images'), cwd_path: Path=Path.cwd()) -> None:
+        self.cwd_path: Path = cwd_path 
+        self.images_path: Path = images_path
         self.scale_low = str(pix_scale * 0.9)
         self.scale_high = str(pix_scale * 1.1)
-        self.tmp_dir = tmp_dir
         self.limitOptions = [
             "--overwrite",  # overwrite any existing files
             "--skip-solved",  # skip any files we've already solved
@@ -34,7 +34,8 @@ class PlateSolve:
             self.scale_high,  # See config above
         ]
         self.fileOptions = [
-            "--dir", self.tmp_dir,
+            "--dir", self.images_path,
+            "-m", self.images_path,
             "--new-fits", "none",  # Don't create a new fits
             "--solved", "none",  # Don't generate the solved output
             "--match", "none",  # Don't generate matched output
@@ -44,7 +45,7 @@ class PlateSolve:
             "--temp-axy" # We can't specify not to create the axy list, but we can write it to temp dir
         ]
         self.cmd = ["solve-field"]
-        self.captureFile = self.tmp_dir + "capture.jpg"
+        self.captureFile = self.images_path / "capture.jpg"
         self.options = (
             self.limitOptions + self.optimizedOptions +
             self.scaleOptions + self.fileOptions + [self.captureFile]

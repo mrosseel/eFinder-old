@@ -32,9 +32,11 @@ import Display
 import ASICamera
 from platesolve import PlateSolve
 from common import Common
+import utils
 
-home_path = str(Path.home())
-images_dir = "/dev/shm/"
+cwd_path: Path = Path.cwd() 
+images_path: Path = Path("/dev/shm/images")
+utils.create_dir(images_path) # create dir if it doesn't yet exist
 version = "16_4"
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
@@ -47,14 +49,14 @@ star_name = "no star"
 solve = False
 sync_count = 0
 pix_scale = 15
-platesolve = PlateSolve(pix_scale, images_dir)
-common = Common(home_path, pix_scale)
+platesolve = PlateSolve(pix_scale, images_path)
+common = Common(cwd_path=cwd_path, images_path=images_path, pix_scale=pix_scale)
 
 def imgDisplay():  # displays the captured image on the Pi desktop.
     for proc in psutil.process_iter():
         if proc.name() == "display":
             proc.kill()  # delete any previous image display
-    im = Image.open(home_path + "/Solver/images/capture.jpg")
+    im = Image.open(images_path / "capture.jpg")
     im.show()
 
 
@@ -69,7 +71,7 @@ def solveImage():
         solve = False
         return
     if (offset_flag == True) and ("The star" in result):
-        table, h = fitsio.read(home_path + "/Solver/images/capture.axy", header=True)
+        table, h = fitsio.read(cwd_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         lines = result.split("\n")
         for line in lines:
@@ -277,8 +279,8 @@ def reset_offset():
 
 def get_param():
     global param, offset_str
-    if os.path.exists(home_path + "/Solver/eFinder.config") == True:
-        with open(home_path + "/Solver/eFinder.config") as h:
+    if os.path.exists(cwd_path / "eFinder.config") == True:
+        with open(cwd_path / "eFinder.config") as h:
             for line in h:
                 line = line.strip("\n").split(":")
                 param[line[0]] = str(line[1])
@@ -290,7 +292,7 @@ def get_param():
 
 def save_param():
     global param
-    with open(home_path + "/Solver/eFinder.config", "w") as h:
+    with open(cwd_path / "eFinder.config", "w") as h:
         for key, value in param.items():
             # print("%s:%s\n" % (key, value))
             h.write("%s:%s\n" % (key, value))
@@ -460,7 +462,7 @@ if nexus.is_aligned() == True:
     arr[0, 4][0] = "'Select' syncs"
 
 
-camera = common.pick_camera(param["Camera Type"], handpad, images_dir)
+camera = common.pick_camera(param["Camera Type"], handpad, images_path)
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""

@@ -62,7 +62,7 @@ class NexusDebug(NexusInterface):
 
     def read(self) -> None:
         """Establishes that Nexus DSC is talking to us and get observer location and time data"""
-        pass
+        self.location=self.coordinates
 
     def read_altAz(self, arr):
         """Read the RA and declination from the Nexus DSC and convert them to altitude and azimuth

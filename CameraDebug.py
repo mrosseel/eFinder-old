@@ -2,13 +2,14 @@ from pathlib import Path
 from shutil import copyfile
 import logging
 from typing import Dict
+import Display
 
 
 class CameraDebug:
     """All cameras should implement this interface.  The interface is used in the eFinder and eFinder_VNCGUI code"""
 
-    def __init__(self, images_dir):
-        self.home = Path.home()
+    def __init__(self, handpad: Display, images_dir='/dev/shm/images', home_path=Path.cwd()) -> None:
+        self.home = home_path 
         self.images_dir = images_dir 
 
     def initialize(self) -> None:
@@ -26,7 +27,7 @@ class CameraDebug:
         radec (str)"""
         if extras['testimage'] == 'm31':
             logging.info("Capturing debug image of m31")
-            copyfile(Path(self.home, "Solver/test.jpg"), Path(self.images_dir, "capture.jpg"))
+            copyfile(Path(self.home, "test.jpg"), Path(self.images_dir, "capture.jpg"))
         elif extras['testimage'] == 'polaris':
             logging.info("Capturing debug image of Polaris")
             self.copy_polaris()
@@ -35,7 +36,7 @@ class CameraDebug:
             self.copy_polaris()
 
     def copy_polaris(self):
-        copyfile(Path(self.home, "Solver/polaris.jpg"),
+        copyfile(Path(self.home, "polaris.jpg"),
                  Path(self.images_dir, "capture.jpg"))
 
     def get_cam_type(self) -> str:

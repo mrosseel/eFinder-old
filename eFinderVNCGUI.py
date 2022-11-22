@@ -42,14 +42,15 @@ import logging
 import argparse
 from platesolve import PlateSolve
 from common import Common
+import utils
 
 version = "16_4_VNC"
 # comment out if this is the autoboot program
 os.system("pkill -9 -f eFinder.py")
 
-home_path = str(Path.home())
-images_dir = '/dev/shm/'
-
+cwd_path: Path = Path.cwd() 
+images_path: Path = Path("/dev/shm/images")
+utils.create_dir(images_path) # create dir if it doesn't yet exist
 
 deltaAz = deltaAlt = 0
 scope_x = scope_y = 0
@@ -209,7 +210,7 @@ def solveImage():
         return
     if offset_flag == True:
         table, h = fitsio.read(
-            images_dir + "capture.axy", header=True)
+            images_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         # print('(capture.axy gives) x,y',table[0][0],table[0][1])
         if "The star" in result:
@@ -270,7 +271,7 @@ def solveImage():
 
 def image_show():
     global manual_angle, img3, EPlength, scopeAlt
-    img2 = Image.open(images_dir + "capture.jpg")
+    img2 = Image.open(images_path / "capture.jpg")
     width, height = img2.size
     img2 = img2.resize((1014, 760), Resampling.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
@@ -337,7 +338,7 @@ def annotate_image():
     scale_low = str(pix_scale * 0.9 * 1.2)  # * 1.2 is because image has been resized for the display panel
     scale_high = str(pix_scale * 1.1 * 1.2)
     image_show()
-    img3 = img3.save(images_dir + "adjusted.jpg")
+    img3 = img3.save(images_path / "adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
     os.system(
         "solve-field --no-plots --new-fits none --solved none --match none --corr none \
@@ -348,7 +349,7 @@ def annotate_image():
             --scale-high "
         + scale_high
         + " "
-        + images_dir
+        + images_path
         + "ages/adjusted.jpg"
     )
     # now we can annotate the image adjusted.jpg
@@ -386,18 +387,18 @@ def annotate_image():
             + opt6
             + " \
             "
-            + images_dir
+            + images_path
             + "ages/adjusted.wcs "
-            + images_dir
+            + images_path
             + "ages/adjusted.jpg "
-            + images_dir
+            + images_path
             + "ages/adjusted_out.jpg"
         )
     except:
         pass
-    if os.path.exists(images_dir + "adjusted_out.jpg") == True:
-        img3 = Image.open(images_dir + "adjusted_out.jpg")
-        filelist = glob.glob(images_dir + "adjusted*.*")
+    if os.path.exists(images_path / "adjusted_out.jpg") == True:
+        img3 = Image.open(images_path / "adjusted_out.jpg")
+        filelist = glob.glob(images_path / "adjusted*.*")
         for filePath in filelist:
             try:
                 os.remove(filePath)
@@ -745,7 +746,7 @@ def reader():
             window.event_generate("<<OLED_Button>>")
         time.sleep(0.1)
 
-def get_param(location=Path(home_path, "eFinder.config")):
+def get_param(location=Path(cwd_path, "eFinder.config")):
     global eye_piece, param, expRange, gainRange
     logging.debug(f"Loading params from {location}")
     if os.path.exists(location) == True:
@@ -766,7 +767,7 @@ def save_param():
     param["Exposure"] = exposure.get()
     param["Gain"] = gain.get()
     param["Test mode"] = polaris.get() or m31.get()
-    with open(home_path + "/Solver/eFinder.config", "w") as h:
+    with open(cwd_path / "eFinder.config", "w") as h:
         for key, value in param.items():
             h.write("%s:%s\n" % (key, value))
 
@@ -802,11 +803,11 @@ def main(realHandpad, realNexus, fakeCamera):
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
     nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
-    platesolve = PlateSolve(pix_scale, images_dir)
-    common = Common(home_path, images_dir, pix_scale)
+    platesolve = PlateSolve(pix_scale, images_path)
+    common = Common(cwd_path, images_path, pix_scale)
     NexStr = nexus.get_nex_str()
     param = dict()
-    get_param(Path(".", "eFinder.config"))
+    get_param(cwd_path / "eFinder.config")
     logging.debug(f"{param=}")
 
     planets = load("de421.bsp")
@@ -814,8 +815,8 @@ def main(realHandpad, realNexus, fakeCamera):
     ts = load.timescale()
     nexus.read()
     camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
-    camera_debug = common.pick_camera('TEST', handpad, images_dir)
-    camera = common.pick_camera(camera_type, handpad, images_dir)
+    camera_debug = common.pick_camera('TEST', handpad, images_path)
+    camera = common.pick_camera(camera_type, handpad, images_path)
 
     logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
     handpad.display('eFinder via VNC', 'Select: Solves', 'Up:Align Dn:GoTo',)
@@ -850,7 +851,7 @@ def main(realHandpad, realNexus, fakeCamera):
         bg=b_g,
         fg=f_g,
     ).place(x=55, y=66)
-    img = Image.open(home_path + "/Solver/M16.jpeg")
+    img = Image.open(cwd_path / "M16.jpeg")
     img = img.resize((1014, 760))
     img = ImageTk.PhotoImage(img)
     panel = tk.Label(window, highlightbackground="red",

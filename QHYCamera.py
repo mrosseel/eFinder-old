@@ -2,7 +2,6 @@ from pathlib import Path
 from shutil import copyfile
 import time
 from CameraInterface import CameraInterface
-import zwoasi as asi
 import Display
 import cv2
 import qhyccd
@@ -13,13 +12,13 @@ from typing import Dict
 class QHYCamera(CameraInterface):
     """The camera class for ZWO cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, images_dir) -> None:
+    def __init__(self, handpad: Display, images_dir='/dev/shm/images', home_path=Path.cwd()) -> None:
         """Initializes the QHY camera
 
         Parameters:
         handpad (Display): The link to the handpad"""
 
-        self.home_path = str(Path.home())
+        self.home_path = home_path 
         self.images_dir = images_dir 
         self.handpad = handpad
         self.camType = "QHY"
@@ -57,10 +56,11 @@ class QHYCamera(CameraInterface):
         camera.SetExposure(exposure_time/1000)  # milliseconds
 
         img = camera.GetSingleFrame()
-        cv2.imwrite(Path(self.images_dir, "capture.jpg"),img)
+        capture_path = Path(self.images_dir, "capture.jpg")
+        cv2.imwrite(capture_path,img)
         copyfile(
-            Path(self.images_dir + "capture.jpg"),
-            Path(self.images_dir + "/Solver/Stills/" + timestr + "_" + radec + ".jpg"),
+            capture_path,
+            Path(self.images_dir, "Stills/" + timestr + "_" + radec + ".jpg"),
         )
         return
 
