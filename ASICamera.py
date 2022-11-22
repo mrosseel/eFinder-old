@@ -81,7 +81,7 @@ class ASICamera(CameraInterface):
         capture_path = self.images_path / "capture.jpg"
         camera.capture(filename=capture_path)
         copyfile( capture_path,
-                self.stills_path / f"Stills{timestr}_{radec}.jpg",
+                self.stills_path / f"{timestr}_{radec}.jpg",
             )
 
         return
