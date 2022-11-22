@@ -36,7 +36,7 @@ import utils
 
 cwd_path: Path = Path.cwd() 
 images_path: Path = Path("/dev/shm/images")
-utils.create_dir(images_path) # create dir if it doesn't yet exist
+utils.create_path(images_path) # create dir if it doesn't yet exist
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0

@@ -49,7 +49,7 @@ os.system("pkill -9 -f eFinder.py")
 
 cwd_path: Path = Path.cwd() 
 images_path: Path = Path("/dev/shm/images")
-utils.create_dir(images_path) # create dir if it doesn't yet exist
+utils.create_path(images_path) # create dir if it doesn't yet exist
 
 deltaAz = deltaAlt = 0
 scope_x = scope_y = 0

@@ -7,7 +7,7 @@ import cv2
 import qhyccd
 from ctypes import *
 from typing import Dict
-
+import utils
 
 class QHYCamera(CameraInterface):
     """The camera class for ZWO cameras.  Implements the CameraInterface interface."""
@@ -20,6 +20,8 @@ class QHYCamera(CameraInterface):
 
         self.home_path = home_path 
         self.images_path = images_path 
+        self.stills_path: Path = home_path / "Stills"
+        utils.create_path(self.stills_path) # create stills dir if not already therew
         self.handpad = handpad
         self.camType = "QHY"
         self.initialize()
@@ -60,7 +62,7 @@ class QHYCamera(CameraInterface):
         cv2.imwrite(capture_path,img)
         copyfile(
             capture_path,
-            self.images_path / ("Stills/" + timestr + "_" + radec + ".jpg"),
+            self.stills_path / f"{timestr}_{radec}.jpg",
         )
         return
 

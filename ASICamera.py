@@ -6,6 +6,7 @@ import zwoasi as asi
 import Display
 from typing import Dict
 import logging
+import utils
 
 
 class ASICamera(CameraInterface):
@@ -20,6 +21,8 @@ class ASICamera(CameraInterface):
         self.handpad = handpad
         self.images_path: Path = images_path
         self.home_path: Path = home_path 
+        self.stills_path: Path = home_path / "Stills"
+        utils.create_path(self.stills_path) # create stills dir if not already therew
 
         # find a camera
         asi.init("/lib/zwoasi/armv7/libASICamera2.so")
@@ -78,9 +81,8 @@ class ASICamera(CameraInterface):
         capture_path = self.images_path / "capture.jpg"
         camera.capture(filename=capture_path)
         copyfile( capture_path,
-                self.home_path / ("Stills" + timestr + "_" + radec + ".jpg"),
+                self.stills_path / f"Stills{timestr}_{radec}.jpg",
             )
-
 
         return
 
