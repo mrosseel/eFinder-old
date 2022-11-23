@@ -7,7 +7,7 @@ echo 'basedir regex = /home' >> /etc/netatalk/afp.conf
 systemctl restart netatalk
 apt-get install -y python3-dev python3-tk gcc cargo rustc libssl-dev # needed for poetry install
 apt-get install -y libatlas-base-dev python3-dev # needed for astropy compile
-apt-get install -y make automake gcc g++ # needed for astrometry.net compile
+apt-get install -y make automake gcc g++ wcslib-dev wcstools # needed for astrometry.net compile
 apt-get install -y git pip neovim wget patch # patch is needed to complie fitsio
 apt install -y libcairo2-dev libnetpbm10-dev netpbm libpng-dev libjpeg-dev zlib1g-dev libbz2-dev swig libcfitsio-dev
 cd $HOME

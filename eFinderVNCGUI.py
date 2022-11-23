@@ -339,17 +339,12 @@ def annotate_image():
     image_show()
     img3 = img3.save(images_path / "adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
-    os.system(
-        "solve-field --no-plots --new-fits none --solved none --match none --corr none \
+    annotate_cmd = "solve-field --no-plots --new-fits none --solved none --match none --corr none \
             --rdls none --cpulimit 10 --temp-axy --overwrite --downsample 2 --no-remove-lines --uniformize 0 \
-            --scale-units arcsecperpix --scale-low "
-        + scale_low
-        + " \
-        --scale-high "
-        + scale_high
-        + " "
-        + str(images_path / "adjusted.jpg")
-    )
+            --scale-units arcsecperpix --scale-low " + scale_low + " \
+            --scale-high " + scale_high + " " + str(images_path / "adjusted.jpg")
+    logging.debug(f"Annotating image with cmd: {annotate_cmd}")
+    os.system(annotate_cmd)
     # now we can annotate the image adjusted.jpg
     opt1 = " " if bright.get() == "1" else " --no-bright"
     opt2 = (
@@ -374,22 +369,13 @@ def annotate_image():
     )
     opt6 = " " if ngc.get() == "1" else " --no-ngc"
     try:  # try because the solve may have failed to produce adjusted.jpg
-        os.system(
-            'python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
-            --no-grid --tcolor="orange" --tsize="14" --no-const'
-            + opt1
-            + opt2
-            + opt3
-            + opt4
-            + opt5
-            + opt6
-            + " \
-            "
-            + str(images_path / "adjusted.wcs")
-            + str(images_path / "adjusted.jpg")
-            + str(images_path / "adjusted_out.jpg")
-        )
+        cmd = 'python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
+                --no-grid --tcolor="orange" --tsize="14" --no-const' + opt1 + opt2 + opt3 + opt4 + opt5 + opt6 + " " \
+                + " ".join([str(images_path / "adjusted.wcs"), str(images_path / "adjusted.jpg"), str(images_path / "adjusted_out.jpg")])
+        logging.debug(f"plotann cmd: {cmd}")
+        os.system(cmd)
     except:
+        logging.debug("Exception during plotann")
         pass
     if os.path.exists(images_path / "adjusted_out.jpg") == True:
         img3 = Image.open(images_path / "adjusted_out.jpg")
