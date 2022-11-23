@@ -27,7 +27,7 @@ class CameraDebug:
         radec (str)"""
         if extras['testimage'] == 'm31':
             logging.info("Capturing debug image of m31")
-            copyfile(self.cwd_path / "test.jpg", self.images_path / "capture.jpg")
+            copyfile(self.cwd_path / "testimages/m31.jpg", self.images_path / "capture.jpg")
         elif extras['testimage'] == 'polaris':
             logging.info("Capturing debug image of Polaris")
             self.copy_polaris()
@@ -36,7 +36,7 @@ class CameraDebug:
             self.copy_polaris()
 
     def copy_polaris(self):
-        copyfile(self.cwd_path / "polaris.jpg", self.images_path / "capture.jpg")
+        copyfile(self.cwd_path / "testimages/polaris.jpg", self.images_path / "capture.jpg")
 
     def get_cam_type(self) -> str:
         """Return the type of the camera

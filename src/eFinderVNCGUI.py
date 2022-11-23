@@ -833,7 +833,7 @@ def main(realHandpad, realNexus, fakeCamera):
         bg=b_g,
         fg=f_g,
     ).place(x=55, y=66)
-    img = Image.open(cwd_path / "M16.jpeg")
+    img = Image.open(cwd_path / "splashscreen.jpeg")
     img = img.resize((1014, 760))
     img = ImageTk.PhotoImage(img)
     panel = tk.Label(window, highlightbackground="red",
