@@ -33,4 +33,4 @@ cd $HOME/eFinder
 sudo -u efinder poetry install
 sudo -u efinder SHELL=/bin/bash poetry shell
 echo "now install the ASI/QHY drivers and when ready run the following command to test everything:"
-echo "python eFinderVNCGui.py"
+echo "python src/eFinderVNCGui.py"

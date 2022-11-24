@@ -212,7 +212,7 @@ DISPLAY=:0
 - Add the following line to start up the eFinder code automatically:
 
 ```bash
-@reboot sleep 20 && (cd /home/efinder/eFinder ; /usr/bin/python /home/efinder/eFinder/eFinderVNCGUI_wifi.py >> /home/efinder/logs.txt 2>&1)
+@reboot sleep 20 && (cd /home/efinder/eFinder ; /usr/bin/python /home/efinder/eFinder/src/eFinderVNCGUI.py >> /home/efinder/logs.txt 2>&1)
 ```
 
 #### Install RTL8192EU driver for the TP-LINK TL-WN823N
