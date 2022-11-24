@@ -1,5 +1,12 @@
 # Changelog for eFinder software
 
+## Version 16_5
+[Mike Rosseel]
+- Extracted common functions from eFinder.py and eFinderVNCGui.py
+- Extracted platesolving to it's own class and used that class in eFinder.py and eFinderVNCGui.py
+- removed all Solver dir references, files are now either in the eFinder directory, in the Stills folder or on /dev/shm/images
+- used Path everywhere for cleaner file handling
+
 ## Version 16_4
 [Mike Rosseel]
 - Introduced argparse to eFinderVNCGui.py to make CLI configuration easier, and later down the road merge it with eFinder.py

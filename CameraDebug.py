@@ -1,20 +1,23 @@
 from pathlib import Path
 from shutil import copyfile
 import logging
+from typing import Dict
+import Display
 
 
 class CameraDebug:
     """All cameras should implement this interface.  The interface is used in the eFinder and eFinder_VNCGUI code"""
 
-    def __init__(self):
-        self.home = Path.home()
+    def __init__(self, handpad: Display, images_path=Path('/dev/shm/images'), cwd_path=Path.cwd()) -> None:
+        self.cwd_path: Path = cwd_path
+        self.images_path: Path = images_path 
 
     def initialize(self) -> None:
         """Initializes the camera and set the needed control parameters"""
         pass
 
     def capture(
-        self, exposure_time: float, gain: float, radec: str, m13: bool, polaris: bool
+            self, exposure_time: float, gain: float, radec: str, extras: Dict
     ) -> None:
         """Capture an image with the camera
 
@@ -22,10 +25,10 @@ class CameraDebug:
         exposure_time (float): The exposure time in seconds
         gain (float): The gain
         radec (str)"""
-        if m13 == True:
-            logging.info("Capturing debug image of m13")
-            copyfile(Path(self.home, "Solver/test.jpg"), Path(self.home, "Solver/images/capture.jpg"))
-        elif polaris == True:
+        if extras['testimage'] == 'm31':
+            logging.info("Capturing debug image of m31")
+            copyfile(self.cwd_path / "test.jpg", self.images_path / "capture.jpg")
+        elif extras['testimage'] == 'polaris':
             logging.info("Capturing debug image of Polaris")
             self.copy_polaris()
         else:
@@ -33,8 +36,7 @@ class CameraDebug:
             self.copy_polaris()
 
     def copy_polaris(self):
-        copyfile(Path(self.home, "Solver/polaris.jpg"),
-                 Path(self.home, "Solver/images/capture.jpg"))
+        copyfile(self.cwd_path / "polaris.jpg", self.images_path / "capture.jpg")
 
     def get_cam_type(self) -> str:
         """Return the type of the camera

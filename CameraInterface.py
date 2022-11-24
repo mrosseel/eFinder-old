@@ -1,3 +1,5 @@
+from typing import Dict
+
 class CameraInterface:
     """All cameras should implement this interface.  The interface is used in the eFinder and eFinder_VNCGUI code"""
 
@@ -6,7 +8,7 @@ class CameraInterface:
         pass
 
     def capture(
-        self, exposure_time: float, gain: float, radec: str, m13: bool, polaris: bool
+            self, exposure_time: float, gain: float, radec: str, extras: Dict
     ) -> None:
         """Capture an image with the camera
 

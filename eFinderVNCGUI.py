@@ -40,13 +40,16 @@ import Coordinates
 import Display
 import logging
 import argparse
+from platesolve import PlateSolve
+from common import Common
+import utils
 
-version = "16_4_VNC"
 # comment out if this is the autoboot program
 os.system("pkill -9 -f eFinder.py")
 
-home_path = str(Path.home())
-
+cwd_path: Path = Path.cwd() 
+images_path: Path = Path("/dev/shm/images")
+utils.create_path(images_path) # create dir if it doesn't yet exist
 
 deltaAz = deltaAlt = 0
 scope_x = scope_y = 0
@@ -77,7 +80,7 @@ solved_radec = 0, 0
 usb = False
 pix_scale = 15
 
-
+# GUI specific
 def setup_sidereal():
     global LST, lbl_LST, lbl_UTC, lbl_date, ts, nexus, window
     t = ts.now()
@@ -98,6 +101,7 @@ def setup_sidereal():
     lbl_date.place(x=55, y=0)
 
 
+# GUI specific
 def sidereal():
     global LST
     t = ts.now()
@@ -116,46 +120,6 @@ def sidereal():
     lbl_LST.after(1000, sidereal)
 
 
-def xy2rd(x, y):  # returns the RA & Dec (J2000) corresponding to an image x,y pixel
-    result = subprocess.run(
-        [
-            "wcs-xy2rd",
-            "-w",
-            home_path + "/Solver/images/capture.wcs",
-            "-x",
-            str(x),
-            "-y",
-            str(y),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    result = str(result.stdout)
-    line = result.split("RA,Dec")[1]
-    ra, dec = re.findall("[-,+]?\d+\.\d+", line)
-    return (float(ra), float(dec))
-
-
-# converts an image pixel x,y to a delta x,y in degrees.
-def pixel2dxdy(pix_x, pix_y):
-    deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
-    deg_y = (480 - float(pix_y)) * pix_scale / 3600
-    # +ve if finder is left of Polaris
-    dxstr = "{: .1f}".format(float(60 * deg_x))
-    dystr = "{: .1f}".format(
-        float(60 * deg_y)
-    )  # +ve if finder is looking below Polaris
-    return (deg_x, deg_y, dxstr, dystr)
-
-
-def dxdy2pixel(dx, dy):
-    pix_x = dx * 3600 / pix_scale + 640
-    pix_y = 480 - dy * 3600 / pix_scale
-    # +ve if finder is left of Polaris
-    dxstr = "{: .1f}".format(float(60 * dx))
-    # +ve if finder is looking below Polaris
-    dystr = "{: .1f}".format(float(60 * dy))
-    return (pix_x, pix_y, dxstr, dystr)
 
 
 def readNexus():
@@ -198,82 +162,31 @@ def readNexus():
 
 
 def capture():
-    global polaris, test, radec, gain, exposure
-    if test.get() == "1":
-        m13 = True
-        polaris_cap = False
-    elif polaris.get() == "1":
-        m13 = False
-        polaris_cap = True
-    else:
-        m13 = False
-        polaris_cap = False
+    global polaris, m31, radec, gain, exposure, platesolve, camera, camera_debug
+    use_camera = camera
+    extras = {}
+    if polaris.get() == "1":
+        extras['testimage'] = 'polaris'
+        use_camera = camera_debug
+    elif m31.get() == "1":
+        extras['testimage'] = 'm31'
+        use_camera = camera_debug
     radec = nexus.get_short()
-    camera.capture(
+    use_camera.capture(
         int(1000000 * float(exposure.get())),
         int(float(gain.get())),
         radec,
-        m13,
-        polaris_cap,
+        extras
     )
     image_show()
 
 
 def solveImage():
-    global solved, scopeAlt, star_name, star_name_offset, solved_radec, solved_altaz
-    scale_low = str(pix_scale * 0.9)
-    scale_high = str(pix_scale * 1.1)
-    name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
-    limitOptions = [
-        "--overwrite",  # overwrite any existing files
-        "--skip-solved",  # skip any files we've already solved
-        "--cpulimit",
-        # limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-        "5",
-    ]
-    optimizedOptions = [
-        "--downsample",
-        "2",  # downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
-        # Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
-        "--no-remove-lines",
-        "--uniformize",
-        "0",  # Saves ~1.25 sec. Just process the image as-is
-    ]
-    scaleOptions = [
-        "--scale-units",
-        "arcsecperpix",  # next two params are in arcsecs. Supplying this saves ~0.5 sec
-        "--scale-low",
-        scale_low,  # See config above
-        "--scale-high",
-        scale_high,  # See config above
-    ]
-    fileOptions = [
-        "--new-fits",
-        "none",  # Don't create a new fits
-        "--solved",
-        "none",  # Don't generate the solved output
-        "--rdls",
-        "none",  # Don't generate the point list
-        "--match",
-        "none",  # Don't generate matched output
-        "--corr",
-        "none",  # Don't generate .corr files
-    ]
-    # "--temp-axy" We can't specify not to create the axy list, but we can write it to /tmp
-    cmd = ["solve-field"]
-    captureFile = home_path + "/Solver/images/capture.jpg"
-    options = (
-        limitOptions + optimizedOptions +
-        scaleOptions + fileOptions + [captureFile]
-    )
-    start_time = time.time()
-    result = subprocess.run(
-        cmd + name_that_star + options, capture_output=True, text=True
-    )
-    elapsed_time = time.time() - start_time
-    # print (result.stdout)
-    elapsed_time = "elapsed time " + str(elapsed_time)[0:4] + " sec"
-    tk.Label(window, text=elapsed_time, width=20, anchor="e", bg=b_g, fg=f_g).place(
+    global offset_flag, scopeAlt, solved_altaz
+    result, elapsed_time = platesolve.solve_image(offset_flag)
+    elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
+
+    tk.Label(window, text=elapsed_time_str, width=20, anchor="e", bg=b_g, fg=f_g).place(
         x=315, y=936
     )
     result = str(result.stdout)
@@ -296,7 +209,7 @@ def solveImage():
         return
     if offset_flag == True:
         table, h = fitsio.read(
-            home_path + "/Solver/images/capture.axy", header=True)
+            images_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         # print('(capture.axy gives) x,y',table[0][0],table[0][1])
         if "The star" in result:
@@ -312,7 +225,7 @@ def solveImage():
             box_write(" no named star", True)
             logging.info("No Named Star found")
             star_name = "Unknown"
-    solvedPos = applyOffset()
+    solvedPos = common.applyOffset(nexus, offset)
     ra, dec, d = solvedPos.apparent().radec(ts.now())
     solved_radec = ra.hours, dec.degrees
     solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
@@ -351,25 +264,13 @@ def solveImage():
     ).place(x=410, y=892)
     solved = True
     box_write("solved", True)
-    deltaCalc()
+    deltaCalcGUI()
     readTarget()
 
 
-def applyOffset():  # creates & returns a 'Skyfield star object' at the set offset and adjusted to Jnow
-    x_offset, y_offset, dxstr, dystr = dxdy2pixel(offset[0], offset[1])
-    ra, dec = xy2rd(x_offset, y_offset)
-    solved = Star(
-        ra_hours=float(ra) / 15, dec_degrees=float(dec)
-    )  # will set as J2000 as no epoch input
-    solvedPos_scope = (
-        nexus.get_location().at(ts.now()).observe(solved)
-    )  # now at Jnow and current location
-    return solvedPos_scope
-
-
 def image_show():
-    global manual_angle, img3, EPlength
-    img2 = Image.open(home_path + "/Solver/images/capture.jpg")
+    global manual_angle, img3, EPlength, scopeAlt
+    img2 = Image.open(images_path / "capture.jpg")
     width, height = img2.size
     img2 = img2.resize((1014, 760), Resampling.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
@@ -436,20 +337,14 @@ def annotate_image():
     scale_low = str(pix_scale * 0.9 * 1.2)  # * 1.2 is because image has been resized for the display panel
     scale_high = str(pix_scale * 1.1 * 1.2)
     image_show()
-    img3 = img3.save(home_path + "/Solver/images/adjusted.jpg")
+    img3 = img3.save(images_path / "adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
-    os.system(
-        "solve-field --no-plots --new-fits none --solved none --match none --corr none \
+    annotate_cmd = "solve-field --no-plots --new-fits none --solved none --match none --corr none \
             --rdls none --cpulimit 10 --temp-axy --overwrite --downsample 2 --no-remove-lines --uniformize 0 \
-            --scale-units arcsecperpix --scale-low "
-        + scale_low
-        + " \
-            --scale-high "
-        + scale_high
-        + " "
-        + home_path
-        + "/Solver/images/adjusted.jpg"
-    )
+            --scale-units arcsecperpix --scale-low " + scale_low + " \
+            --scale-high " + scale_high + " " + str(images_path / "adjusted.jpg")
+    logging.debug(f"Annotating image with cmd: {annotate_cmd}")
+    os.system(annotate_cmd)
     # now we can annotate the image adjusted.jpg
     opt1 = " " if bright.get() == "1" else " --no-bright"
     opt2 = (
@@ -474,29 +369,17 @@ def annotate_image():
     )
     opt6 = " " if ngc.get() == "1" else " --no-ngc"
     try:  # try because the solve may have failed to produce adjusted.jpg
-        os.system(
-            'python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
-            --no-grid --tcolor="orange" --tsize="14" --no-const'
-            + opt1
-            + opt2
-            + opt3
-            + opt4
-            + opt5
-            + opt6
-            + " \
-            "
-            + home_path
-            + "/Solver/images/adjusted.wcs "
-            + home_path
-            + "/Solver/images/adjusted.jpg "
-            + home_path
-            + "/Solver/images/adjusted_out.jpg"
-        )
+        cmd = 'python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
+                --no-grid --tcolor="orange" --tsize="14" --no-const' + opt1 + opt2 + opt3 + opt4 + opt5 + opt6 + " " \
+                + " ".join([str(images_path / "adjusted.wcs"), str(images_path / "adjusted.jpg"), str(images_path / "adjusted_out.jpg")])
+        logging.debug(f"plotann cmd: {cmd}")
+        os.system(cmd)
     except:
+        logging.debug("Exception during plotann")
         pass
-    if os.path.exists(home_path + "/Solver/images/adjusted_out.jpg") == True:
-        img3 = Image.open(home_path + "/Solver/images/adjusted_out.jpg")
-        filelist = glob.glob(home_path + "/Solver/images/adjusted*.*")
+    if os.path.exists(images_path / "adjusted_out.jpg") == True:
+        img3 = Image.open(images_path / "adjusted_out.jpg")
+        filelist = glob.glob(str(images_path / "adjusted*.*"))
         for filePath in filelist:
             try:
                 os.remove(filePath)
@@ -520,21 +403,9 @@ def zoom_at(img, x, y, zoom):
     return img.resize((w, h), Image.LANCZOS)
 
 
-def deltaCalc():
-    global deltaAz, deltaAlt
-    nexus_altaz = nexus.get_altAz()
-    deltaAz = solved_altaz[1] - nexus_altaz[1]
-    if abs(deltaAz) > 180:
-        if deltaAz < 0:
-            deltaAz = deltaAz + 360
-        else:
-            deltaAz = deltaAz - 360
-    # print('cosine scopeAlt',math.cos(scopeAlt))
-    deltaAz = 60 * (
-        deltaAz * math.cos(scopeAlt)
-    )  # actually this is delta'x' in arcminutes
-    deltaAlt = solved_altaz[0] - nexus_altaz[0]
-    deltaAlt = 60 * (deltaAlt)  # in arcminutes
+def deltaCalcGUI():
+    global deltaAz, deltaAlt, solved_altaz
+    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
     deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
     deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
     tk.Label(window, width=10, anchor="e", text=deltaAzstr, bg=b_g, fg=f_g).place(
@@ -543,7 +414,6 @@ def deltaCalc():
     tk.Label(window, width=10, anchor="e", text=deltaAltstr, bg=b_g, fg=f_g).place(
         x=315, y=892
     )
-
 
 def moveScope(dAz, dAlt):
     azPulse = abs(dAz / float(param["azSpeed"]))  # seconds
@@ -623,7 +493,7 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
     tk.Label(window, text="Nexus report: " +
              p[0:3], bg=b_g, fg=f_g).place(x=20, y=620)
     readNexus()
-    deltaCalc()
+    deltaCalcGUI()
 
 
 def measure_offset():
@@ -646,7 +516,7 @@ def measure_offset():
             x=115, y=470
         )
     box_write(star_name, True)
-    d_x, d_y, dxstr_new, dystr_new = pixel2dxdy(scope_x, scope_y)
+    d_x, d_y, dxstr_new, dystr_new = common.pixel2dxdy(scope_x, scope_y)
     offset_new = d_x, d_y
     tk.Label(
         window,
@@ -662,7 +532,7 @@ def measure_offset():
 def use_new():
     global offset
     offset = offset_new
-    x_offset_new, y_offset_new, dxstr, dystr = dxdy2pixel(offset[0], offset[1])
+    x_offset_new, y_offset_new, dxstr, dystr = common.dxdy2pixel(offset[0], offset[1])
     tk.Label(window, text=dxstr + "," + dystr, bg=b_g, fg=f_g, width=8).place(
         x=60, y=400
     )
@@ -677,7 +547,7 @@ def save_offset():
 
 
 def get_offset():
-    x_offset_saved, y_offset_saved, dxstr_saved, dystr_saved = dxdy2pixel(
+    x_offset_saved, y_offset_saved, dxstr_saved, dystr_saved = common.dxdy2pixel(
         float(param["d_x"]), float(param["d_y"])
     )
     tk.Label(
@@ -692,7 +562,7 @@ def get_offset():
 
 def use_loaded_offset():
     global offset
-    x_offset_saved, y_offset_saved, dxstr, dystr = dxdy2pixel(
+    x_offset_saved, y_offset_saved, dxstr, dystr = common.dxdy2pixel(
         float(param["d_x"]), float(param["d_y"])
     )
     offset = float(param["d_x"]), float(param["d_y"])
@@ -708,7 +578,7 @@ def reset_offset():
     tk.Label(window, text="0,0", bg=b_g, fg="red", width=8).place(x=60, y=400)
 
 
-def image():
+def read_nexus_and_capture():
     global handpad
     handpad.display("Get information from Nexus", "", "")
     readNexus()
@@ -857,7 +727,7 @@ def reader():
             window.event_generate("<<OLED_Button>>")
         time.sleep(0.1)
 
-def get_param(location=Path(home_path, "eFinder.config")):
+def get_param(location=Path(cwd_path, "eFinder.config")):
     global eye_piece, param, expRange, gainRange
     logging.debug(f"Loading params from {location}")
     if os.path.exists(location) == True:
@@ -874,11 +744,11 @@ def get_param(location=Path(home_path, "eFinder.config")):
                     gainRange = line[1].split(",")
 
 def save_param():
-    global param, exposure
+    global param, exposure, polaris, m31
     param["Exposure"] = exposure.get()
     param["Gain"] = gain.get()
-    param["Test mode"] = test.get()
-    with open(home_path + "/Solver/eFinder.config", "w") as h:
+    param["Test mode"] = polaris.get() or m31.get()
+    with open(cwd_path / "eFinder.config", "w") as h:
         for key, value in param.items():
             h.write("%s:%s\n" % (key, value))
 
@@ -888,7 +758,7 @@ def do_button(event):
     logging.debug(f"button event: {button}")
     if button == '21':
         handpad.display('Capturing image', '', '')
-        image()
+        read_nexus_and_capture()
         handpad.display('Solving image', '', '')
         solve()
         handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
@@ -904,32 +774,22 @@ def do_button(event):
         handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
             solved_radec[1]), 'd:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
 
-def pick_camera(camera_type):
-    camera = None
-    if camera_type == 'ASI':
-        import ASICamera
-        camera = ASICamera.ASICamera(handpad)
-    elif camera_type == 'QHY':
-        import QHYCamera
-        camera = QHYCamera.QHYCamera(handpad)
-    elif camera_type == 'TEST':
-        import CameraDebug
-        camera = CameraDebug.CameraDebug()
-    return camera
  
 
 
 def main(realHandpad, realNexus, fakeCamera):
-    logging.info(f"Starting eFinder version {version}...")
     # main code starts here
-    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, polaris, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, bright, hip, hd, abell, tycho2, ngc
+    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, camera_debug, polaris, m31, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common, bright, hip, hd, abell, tycho2, ngc, version
+    common = Common(cwd_path, images_path, pix_scale, "_VNC")
+    version = common.get_version()
+    logging.info(f"Starting eFinder version {version}...")
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
-    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(
-        handpad, coordinates)
+    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
+    platesolve = PlateSolve(pix_scale, images_path)
     NexStr = nexus.get_nex_str()
     param = dict()
-    get_param(Path(".", "eFinder.config"))
+    get_param(cwd_path / "eFinder.config")
     logging.debug(f"{param=}")
 
     planets = load("de421.bsp")
@@ -937,7 +797,8 @@ def main(realHandpad, realNexus, fakeCamera):
     ts = load.timescale()
     nexus.read()
     camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
-    camera = pick_camera(camera_type)
+    camera_debug = common.pick_camera('TEST', handpad, images_path)
+    camera = common.pick_camera(camera_type, handpad, images_path)
 
     logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
     handpad.display('eFinder via VNC', 'Select: Solves', 'Up:Align Dn:GoTo',)
@@ -972,7 +833,7 @@ def main(realHandpad, realNexus, fakeCamera):
         bg=b_g,
         fg=f_g,
     ).place(x=55, y=66)
-    img = Image.open(home_path + "/Solver/M16.jpeg")
+    img = Image.open(cwd_path / "M16.jpeg")
     img = img.resize((1014, 760))
     img = ImageTk.PhotoImage(img)
     panel = tk.Label(window, highlightbackground="red",
@@ -1032,18 +893,18 @@ def main(realHandpad, realNexus, fakeCamera):
         fg=f_g,
         variable=polaris,
     ).pack(padx=1, pady=1)
-    test = StringVar()
-    test.set(param["Test mode"])
+    m31 = StringVar()
+    m31.set("0")
     tk.Checkbutton(
         options_frame,
-    text="M31 image",
+        text="M31 image",
         width=13,
         anchor="w",
         highlightbackground="black",
         activebackground="red",
         bg=b_g,
         fg=f_g,
-        variable=test,
+        variable=m31,
     ).pack(padx=1, pady=1)
 
     box_write("ccd is " + camera.get_cam_type(), False)
@@ -1073,7 +934,7 @@ def main(realHandpad, realNexus, fakeCamera):
         fg=f_g,
         height=2,
         width=10,
-        command=image,
+        command=read_nexus_and_capture,
     ).pack(padx=1, pady=5)
     tk.Button(
         but_frame,
@@ -1174,7 +1035,7 @@ def main(realHandpad, realNexus, fakeCamera):
         width=8,
         command=reset_offset,
     ).pack(padx=1, pady=1)
-    d_x, d_y, dxstr, dystr = pixel2dxdy(offset[0], offset[1])
+    d_x, d_y, dxstr, dystr = common.pixel2dxdy(offset[0], offset[1])
 
     tk.Label(window, text="Offset:", bg=b_g, fg=f_g).place(x=10, y=400)
     tk.Label(window, text="0,0", bg=b_g, fg=f_g, width=6).place(x=60, y=400)

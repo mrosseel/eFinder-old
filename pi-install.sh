@@ -7,7 +7,7 @@ echo 'basedir regex = /home' >> /etc/netatalk/afp.conf
 systemctl restart netatalk
 apt-get install -y python3-dev python3-tk gcc cargo rustc libssl-dev # needed for poetry install
 apt-get install -y libatlas-base-dev python3-dev # needed for astropy compile
-apt-get install -y make automake gcc g++ # needed for astrometry.net compile
+apt-get install -y make automake gcc g++ wcslib-dev wcstools # needed for astrometry.net compile
 apt-get install -y git pip neovim wget patch # patch is needed to complie fitsio
 apt install -y libcairo2-dev libnetpbm10-dev netpbm libpng-dev libjpeg-dev zlib1g-dev libbz2-dev swig libcfitsio-dev
 cd $HOME
@@ -29,12 +29,7 @@ wget http://data.astrometry.net/4100/index-4108.fits
 wget http://data.astrometry.net/4100/index-4109.fits
 wget http://data.astrometry.net/4100/index-4110.fits
 wget http://data.astrometry.net/4100/index-4111.fits
-cd $HOME
-sudo -u efinder mkdir Solver
-sudo -u efinder mkdir Solver/images
-sudo -u efinder mkdir Solver/Stills
 cd $HOME/eFinder
-cp *.jpg *.jpeg $HOME/Solver
 sudo -u efinder poetry install
 sudo -u efinder SHELL=/bin/bash poetry shell
 echo "now install the ASI/QHY drivers and when ready run the following command to test everything:"

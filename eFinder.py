@@ -30,10 +30,13 @@ import Nexus
 import Coordinates
 import Display
 import ASICamera
-import CameraInterface
+from platesolve import PlateSolve
+from common import Common
+import utils
 
-home_path = str(Path.home())
-version = "16_4"
+cwd_path: Path = Path.cwd() 
+images_path: Path = Path("/dev/shm/images")
+utils.create_path(images_path) # create dir if it doesn't yet exist
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
@@ -45,110 +48,22 @@ star_name = "no star"
 solve = False
 sync_count = 0
 pix_scale = 15
-
-
-def xy2rd(x, y):  # returns the RA & Dec equivalent to a camera pixel x,y
-    result = subprocess.run(
-        [
-            "wcs-xy2rd",
-            "-w",
-            home_path + "/Solver/images/capture.wcs",
-            "-x",
-            str(x),
-            "-y",
-            str(y),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    result = str(result.stdout)
-    line = result.split("RA,Dec")[1]
-    ra, dec = re.findall("[-,+]?\d+\.\d+", line)
-    return (float(ra), float(dec))
-
-
-def pixel2dxdy(
-    pix_x, pix_y
-):  # converts a pixel position, into a delta angular offset from the image centre
-    deg_x = (float(pix_x) - 640) * pix_scale / 3600  # in degrees
-    deg_y = (480 - float(pix_y)) * pix_scale / 3600
-    dxstr = "{: .1f}".format(float(60 * deg_x))  # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(
-        float(60 * deg_y)
-    )  # +ve if finder is looking below Polaris
-    return (deg_x, deg_y, dxstr, dystr)
-
-
-def dxdy2pixel(dx, dy):
-    pix_x = dx * 3600 / pix_scale + 640
-    pix_y = 480 - dy * 3600 / pix_scale
-    dxstr = "{: .1f}".format(float(60 * dx))  # +ve if finder is left of Polaris
-    dystr = "{: .1f}".format(float(60 * dy))  # +ve if finder is looking below Polaris
-    return (pix_x, pix_y, dxstr, dystr)
-
+platesolve = PlateSolve(pix_scale, images_path)
+common = Common(cwd_path=cwd_path, images_path=images_path, pix_scale=pix_scale, version_suffix="")
+version = common.get_version()
 
 def imgDisplay():  # displays the captured image on the Pi desktop.
     for proc in psutil.process_iter():
         if proc.name() == "display":
             proc.kill()  # delete any previous image display
-    im = Image.open(home_path + "/Solver/images/capture.jpg")
+    im = Image.open(images_path / "capture.jpg")
     im.show()
 
 
 def solveImage():
     global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset, solved_radec, solved_altaz
-    scale_low = str(pix_scale * 0.9)
-    scale_high = str(pix_scale * 1.1)
-    name_that_star = ([]) if (offset_flag == True) else (["--no-plots"])
     handpad.display("Started solving", "", "")
-    limitOptions = [
-        "--overwrite",  # overwrite any existing files
-        "--skip-solved",  # skip any files we've already solved
-        "--cpulimit",
-        "10",  # limit to 10 seconds(!). We use a fast timeout here because this code is supposed to be fast
-    ]
-    optimizedOptions = [
-        "--downsample",
-        "2",  # downsample 4x. 2 = faster by about 1.0 second; 4 = faster by 1.3 seconds
-        "--no-remove-lines",  # Saves ~1.25 sec. Don't bother trying to remove surious lines from the image
-        "--uniformize",
-        "0",  # Saves ~1.25 sec. Just process the image as-is
-    ]
-    scaleOptions = [
-        "--scale-units",
-        "arcsecperpix",  # next two params are in arcsecs. Supplying this saves ~0.5 sec
-        "--scale-low",
-        scale_low,  # See config above
-        "--scale-high",
-        scale_high,  # See config above
-    ]
-    fileOptions = [
-        "--new-fits",
-        "none",  # Don't create a new fits
-        "--solved",
-        "none",  # Don't generate the solved output
-        "--match",
-        "none",  # Don't generate matched output
-        "--corr",
-        "none",  # Don't generate .corr files
-        "--rdls",
-        "none",  # Don't generate the point list
-        "--temp-axy",  # We can't specify not to create the axy list, but we can write it to /tmp
-    ]
-
-    cmd = ["solve-field"]
-    captureFile = home_path + "/Solver/images/capture.jpg"
-    options = (
-        limitOptions + optimizedOptions + scaleOptions + fileOptions + [captureFile]
-    )
-    start_time = time.time()
-    # next line runs the plate-solve on the captured image file
-    result = subprocess.run(
-        cmd + name_that_star + options, capture_output=True, text=True
-    )
-    elapsed_time = time.time() - start_time
-    print("solve elapsed time " + str(elapsed_time)[0:4] + " sec\n")
-    print(result.stdout)  # this line added to help debug.
+    result, elapsed_time = platesolve.solve_image(offset_flag)
     result = str(result.stdout)
     if "solved" not in result:
         print("Bad Luck - Solve Failed")
@@ -156,7 +71,7 @@ def solveImage():
         solve = False
         return
     if (offset_flag == True) and ("The star" in result):
-        table, h = fitsio.read(home_path + "/Solver/images/capture.axy", header=True)
+        table, h = fitsio.read(cwd_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         lines = result.split("\n")
         for line in lines:
@@ -164,7 +79,7 @@ def solveImage():
                 star_name = line.split(" ")[4]
                 print("Solve-field Plot found: ", star_name)
                 break
-    solvedPos = applyOffset()
+    solvedPos = common.applyOffset(nexus, offset)
     ra, dec, d = solvedPos.apparent().radec(coordinates.get_ts().now())
     solved_radec = ra.hours, dec.degrees
     solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
@@ -176,33 +91,9 @@ def solveImage():
     deltaCalc()
 
 
-def applyOffset():
-    x_offset, y_offset, dxstr, dystr = dxdy2pixel(
-        float(param["d_x"]), float(param["d_y"])
-    )
-    ra, dec = xy2rd(x_offset, y_offset)
-    solved = Star(
-        ra_hours=ra / 15, dec_degrees=dec
-    )  # will set as J2000 as no epoch input
-    solvedPos_scope = (
-        nexus.get_location().at(coordinates.get_ts().now()).observe(solved)
-    )  # now at Jnow and current location
-    return solvedPos_scope
-
-
 def deltaCalc():
-    global deltaAz, deltaAlt, elapsed_time
-    deltaAz = solved_altaz[1] - nexus.get_altAz()[1]
-    if abs(deltaAz) > 180:
-        if deltaAz < 0:
-            deltaAz = deltaAz + 360
-        else:
-            deltaAz = deltaAz - 360
-    deltaAz = 60 * (
-        deltaAz * math.cos(nexus.get_scope_alt())
-    )  # actually this is delta'x' in arcminutes
-    deltaAlt = solved_altaz[0] - nexus.get_altAz()[0]
-    deltaAlt = 60 * (deltaAlt)  # in arcminutes
+    global deltaAz, deltaAlt, solved_altaz, scopeAlt, elapsed_time
+    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
     deltaXstr = "{: .2f}".format(float(deltaAz))
     deltaYstr = "{: .2f}".format(float(deltaAlt))
     arr[0, 3][0] = "Delta: x= " + deltaXstr
@@ -269,7 +160,7 @@ def measure_offset():
         return
     scope_x = star_name_offset[0]
     scope_y = star_name_offset[1]
-    d_x, d_y, dxstr, dystr = pixel2dxdy(scope_x, scope_y)
+    d_x, d_y, dxstr, dystr = common.pixel2dxdy(scope_x, scope_y)
     param["d_x"] = d_x
     param["d_y"] = d_y
     save_param()
@@ -319,23 +210,18 @@ def update_summary():
 
 def capture():
     global param
+    extras = {}
     if param["Test mode"] == "1":
         if offset_flag == False:
-            m13 = True
-            polaris_cap = False
+            extras['testimage'] = 'm13'
         else:
-            m13 = False
-            polaris_cap = True
-    else:
-        m13 = False
-        polaris_cap = False
+            extras['testimage'] = 'polaris'
     radec = nexus.get_short()
     camera.capture(
         int(float(param["Exposure"]) * 1000000),
         int(float(param["Gain"])),
         radec,
-        m13,
-        polaris_cap,
+        extras
     )
 
 
@@ -393,12 +279,12 @@ def reset_offset():
 
 def get_param():
     global param, offset_str
-    if os.path.exists(home_path + "/Solver/eFinder.config") == True:
-        with open(home_path + "/Solver/eFinder.config") as h:
+    if os.path.exists(cwd_path / "eFinder.config") == True:
+        with open(cwd_path / "eFinder.config") as h:
             for line in h:
                 line = line.strip("\n").split(":")
                 param[line[0]] = str(line[1])
-        pix_x, pix_y, dxstr, dystr = dxdy2pixel(
+        pix_x, pix_y, dxstr, dystr = common.dxdy2pixel(
             float(param["d_x"]), float(param["d_y"])
         )
         offset_str = dxstr + "," + dystr
@@ -406,7 +292,7 @@ def get_param():
 
 def save_param():
     global param
-    with open(home_path + "/Solver/eFinder.config", "w") as h:
+    with open(cwd_path / "eFinder.config", "w") as h:
         for key, value in param.items():
             # print("%s:%s\n" % (key, value))
             h.write("%s:%s\n" % (key, value))
@@ -567,7 +453,7 @@ arr = np.array(
     ]
 )
 update_summary()
-deg_x, deg_y, dxstr, dystr = dxdy2pixel(float(param["d_x"]), float(param["d_y"]))
+deg_x, deg_y, dxstr, dystr = common.dxdy2pixel(float(param["d_x"]), float(param["d_y"]))
 offset_str = dxstr + "," + dystr
 new_arr = nexus.read_altAz(arr)
 arr = new_arr
@@ -575,13 +461,8 @@ if nexus.is_aligned() == True:
     arr[0, 4][1] = "Nexus is aligned"
     arr[0, 4][0] = "'Select' syncs"
 
-camera_type = param["Camera Type"]
-if camera_type == "ASI":
-    import ASICamera
-    camera = ASICamera.ASICamera(handpad)
-elif camera_type == "QHY":
-    import QHYCamera
-    camera = QHYCamera.QHYCamera(handpad)
+
+camera = common.pick_camera(param["Camera Type"], handpad, images_path)
 
 handpad.display("ScopeDog eFinder", "v" + version, "")
 button = ""
