@@ -26,8 +26,8 @@ class NexusDebug(NexusInterface):
         self.coordinates: Coordinates = coordinates
         self.NexStr = "not connected"
         self.short = "no_RADec"
-        self.long = 40
-        self.lat = 5
+        self.long = 42
+        self.lat = 42
 
     def write(self, txt: str) -> None:
         """Write a message to the Nexus DSC

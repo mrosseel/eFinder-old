@@ -594,7 +594,7 @@ def solve():
 
 
 def readTarget():
-    global goto_radec, goto_altaz, goto_ra, goto_dec
+    global goto_radec, goto_altaz, goto_ra, goto_dec, solved_altaz
     goto_ra = nexus.get(":Gr#")
     goto_dec = nexus.get(":Gd#")
     if (
