@@ -122,7 +122,7 @@ def sidereal():
 
 
 
-def readNexus():
+def readNexusGUI():
     """Read the AltAz from the Nexus DSC and put the correct numbers on the GUI."""
     nexus.read_altAz(None)
     nexus_radec = nexus.get_radec()
@@ -160,7 +160,7 @@ def readNexus():
         fg=f_g,
     ).place(x=225, y=892)
 
-
+# TODO MR reduce globals to zero
 def capture():
     global polaris, m31, radec, gain, exposure, platesolve, camera, camera_debug
     use_camera = camera
@@ -455,7 +455,7 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
     # readNexus()
     capture()
     solveImage()
-    readNexus()
+    readNexusGUI()
     if solved == False:
         return
     align_ra = ":Sr" + coordinates.dd2dms((solved_radec)[0]) + "#"
@@ -492,14 +492,14 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
     )
     tk.Label(window, text="Nexus report: " +
              p[0:3], bg=b_g, fg=f_g).place(x=20, y=620)
-    readNexus()
+    readNexusGUI()
     deltaCalcGUI()
 
 
 def measure_offset():
     global offset_new, scope_x, scope_y, offset_flag
     offset_flag = True
-    readNexus()
+    readNexusGUI()
     capture()
     solveImage()
     if solved == False:
@@ -581,13 +581,13 @@ def reset_offset():
 def read_nexus_and_capture():
     global handpad
     handpad.display("Get information from Nexus", "", "")
-    readNexus()
+    readNexusGUI()
     handpad.display("Capture image", "", "")
     capture()
 
 
 def solve():
-    readNexus()
+    readNexusGUI()
     handpad.display("Solving image", "", "")
     solveImage()
     image_show()
@@ -1050,7 +1050,7 @@ def main(realHandpad, realNexus, fakeCamera):
         activebackground="red",
         highlightbackground="red",
         bd=0,
-        command=readNexus,
+        command=readNexusGUI,
     ).pack(padx=1, pady=1)
 
     tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=345, y=770)
