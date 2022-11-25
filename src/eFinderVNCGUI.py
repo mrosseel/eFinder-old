@@ -208,8 +208,7 @@ def solveImage():
         tk.Label(window, text=elapsed_time, bg=b_g, fg=f_g).place(x=315, y=936)
         return
     if offset_flag == True:
-        table, h = fitsio.read(
-            images_path / "capture.axy", header=True)
+        table, h = fitsio.read(images_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
         # print('(capture.axy gives) x,y',table[0][0],table[0][1])
         if "The star" in result:

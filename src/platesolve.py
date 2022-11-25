@@ -41,8 +41,8 @@ class PlateSolve:
             "--match", "none",  # Don't generate matched output
             # "--wcs", "none", # would like to turn this off, but we need to generate wcs for some advanced features which might be turned off...
             "--corr", "none",  # Don't generate .corr files
-            "--rdls", "none",  # Don't generate the point list
-            "--temp-axy" # We can't specify not to create the axy list, but we can write it to temp dir
+            "--rdls", "none"  # Don't generate the point list
+            # "--temp-axy" # We can't specify not to create the axy list, but we can write it to temp dir
         ]
         self.cmd = ["solve-field"]
         self.captureFile = self.images_path / "capture.jpg"
