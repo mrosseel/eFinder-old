@@ -73,7 +73,6 @@ solved = False
 box_list = ["", "", "", "", "", ""]
 eye_piece = []
 radec = "no_radec"
-offset_flag = False
 f_g = "red"
 b_g = "black"
 solved_radec = 0, 0
@@ -181,9 +180,9 @@ def capture():
     image_show()
 
 
-def solveImage():
-    global offset_flag, scopeAlt, solved_altaz
-    result, elapsed_time = platesolve.solve_image(offset_flag)
+def solveImage(is_offset=False):
+    global scopeAlt, solved_altaz, star_name, star_name_offset, solved
+    result, elapsed_time = platesolve.solve_image(is_offset)
     elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
 
     tk.Label(window, text=elapsed_time_str, width=20, anchor="e", bg=b_g, fg=f_g).place(
@@ -191,27 +190,13 @@ def solveImage():
     )
     result = str(result.stdout)
     if "solved" not in result:
-        box_write("Solve Failed", True)
+        solve_image_failed(b_g, f_g, elapsed_time, window)
         solved = False
-        tk.Label(
-            window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-        ).place(x=410, y=804)
-        tk.Label(
-            window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-        ).place(x=410, y=826)
-        tk.Label(
-            window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-        ).place(x=410, y=870)
-        tk.Label(
-            window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-        ).place(x=410, y=892)
-        tk.Label(window, text=elapsed_time, bg=b_g, fg=f_g).place(x=315, y=936)
         return
-    if offset_flag == True:
-        table, h = fitsio.read(
-            images_path / "capture.axy", header=True)
+    if is_offset:
+        table, h = fitsio.read(images_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
-        # print('(capture.axy gives) x,y',table[0][0],table[0][1])
+        logging.debug(f'(capture.axy gives) x,y {table[0][0]} {table[0][1]}')
         if "The star" in result:
             lines = result.split("\n")
             for line in lines:
@@ -230,6 +215,30 @@ def solveImage():
     solved_radec = ra.hours, dec.degrees
     solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
     scopeAlt = solved_altaz[0] * math.pi / 180
+    solveImageGui(solved_radec, solved_altaz)
+    solved = True
+    box_write("solved", True)
+    deltaCalcGUI()
+    readTarget()
+
+def solve_image_failed(b_g, f_g, elapsed_time, window):
+    box_write("Solve Failed", True)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=804)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=826)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=870)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=892)
+    tk.Label(window, text=elapsed_time, bg=b_g, fg=f_g).place(x=315, y=936)
+
+
+def solveImageGui(solved_radec, solved_altaz):
     tk.Label(
         window,
         width=10,
@@ -262,11 +271,6 @@ def solveImage():
         bg=b_g,
         fg=f_g,
     ).place(x=410, y=892)
-    solved = True
-    box_write("solved", True)
-    deltaCalcGUI()
-    readTarget()
-
 
 def image_show():
     global manual_angle, img3, EPlength, scopeAlt
@@ -276,7 +280,7 @@ def image_show():
     width, height = img2.size
     h = pix_scale * 960/60  # vertical finder field of view in arc min
     w = pix_scale * 1280/60
-    w_offset = width * offset[0] * 60 / w
+    w_offset = width * offset[0] * 60 / w 
     h_offset = height * offset[1] * 60 / h
     img2 = img2.convert("RGB")
     if grat.get() == "1":
@@ -497,14 +501,17 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
 
 
 def measure_offset():
-    global offset_new, scope_x, scope_y, offset_flag
-    offset_flag = True
+    global offset_new, scope_x, scope_y, star_name, solved
+    logging.debug("Starting measure_offset for {star_name=}")
     readNexus()
+    logging.debug("Read nexus")
     capture()
-    solveImage()
+    logging.debug("Did capture")
+    solveImage(is_offset=True)
+    logging.debug("Solved image")
     if solved == False:
         box_write("solve failed", True)
-        offset_flag = False
+        logging.debug("solve failed")
         return
     scope_x, scope_y = star_name_offset
     if star_name == "Unknown":  # display warning in red.
@@ -517,6 +524,7 @@ def measure_offset():
         )
     box_write(star_name, True)
     d_x, d_y, dxstr_new, dystr_new = common.pixel2dxdy(scope_x, scope_y)
+    logging.debug(f"Measured star with star name = {star_name} and {dxstr_new=} and {dystr_new}")
     offset_new = d_x, d_y
     tk.Label(
         window,
@@ -526,11 +534,10 @@ def measure_offset():
         bg=b_g,
         fg=f_g,
     ).place(x=110, y=450)
-    offset_flag = False
 
 
 def use_new():
-    global offset
+    global offset, offset_new
     offset = offset_new
     x_offset_new, y_offset_new, dxstr, dystr = common.dxdy2pixel(offset[0], offset[1])
     tk.Label(window, text=dxstr + "," + dystr, bg=b_g, fg=f_g, width=8).place(
