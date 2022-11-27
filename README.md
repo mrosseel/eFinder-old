@@ -28,6 +28,8 @@
       - [In the VNC GUI version](#in-the-vnc-gui-version)
       - [In the handpad version](#in-the-handpad-version)
   - [Development environment](#development-environment)
+    - [Poetry](#poetry)
+    - [Docker](#docker)
 
 ## Source code
 
@@ -342,10 +344,10 @@ Activate a python virtual environment (do this every time):
 
 `poetry shell`
 
-Run the VNC Gui version of the app without having a handpad, a camera or a nexus device. 
+Run the VNC Gui version of the app without having a handpad, a camera or a nexus device.
 (The headless version has no command line options at the moment)
 
-`python eFinderVNCGui.py -fh -fn -fc`
+`python eFinderVNCGUI.py -fh -fn -fc`
 
 ### Docker
 
@@ -357,5 +359,3 @@ Running the image:
 
 Accessing the running image:
 ```docker exec -it efinder-test bash```
-
-
