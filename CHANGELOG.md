@@ -7,6 +7,9 @@
 - removed all Solver dir references, files are now either in the eFinder directory, in the Stills folder or on /dev/shm/images
 - used Path everywhere for cleaner file handling
 
+[Keith Venables]
+- eFinder did not handle negative declination values
+
 ## Version 16_4
 [Mike Rosseel]
 - Introduced argparse to eFinderVNCGui.py to make CLI configuration easier, and later down the road merge it with eFinder.py
