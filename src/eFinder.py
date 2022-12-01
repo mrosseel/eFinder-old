@@ -33,6 +33,10 @@ import ASICamera
 from platesolve import PlateSolve
 from common import Common
 import utils
+import logging
+import argparse
+from HandpadDebug import HandpadDebug
+from NexusDebug import NexusDebug
 
 cwd_path: Path = Path.cwd() 
 images_path: Path = Path("/dev/shm/images")
@@ -309,181 +313,211 @@ def reader():
 # main code starts here
 
 # time.sleep(1)
-handpad = Display.Handpad(version)
-coordinates = Coordinates.Coordinates()
-nexus = Nexus.Nexus(handpad, coordinates)
-nexus.read()
-param = dict()
-get_param()
+def main(realHandpad, realNexus, fakeCamera):
+    global param, handpad, coordinates, nexus
+    handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
+    coordinates = Coordinates.Coordinates()
+    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
+    nexus.read()
+    param = dict()
+    get_param()
 
-handpad.display("ScopeDog eFinder", "Ready", "")
-# array determines what is displayed, computed and what each button does for each screen.
-# [first line,second line,third line, up button action,down...,left...,right...,select button short press action, long press action]
-# empty string does nothing.
-# example: left_right(-1) allows left button to scroll to the next left screen
-# button texts are infact def functions
-p = ""
-home = [
-    "ScopeDog",
-    "eFinder",
-    "ver" + version,
-    "",
-    "up_down(1)",
-    "",
-    "left_right(1)",
-    "go_solve()",
-    "",
-]
-nex = [
-    "Nex: RA ",
-    "    Dec ",
-    "",
-    "",
-    "",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
-sol = [
-    "No solution yet",
-    "'select' solves",
-    "",
-    "",
-    "",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
-delta = [
-    "Delta: No solve",
-    "'select' solves",
-    "",
-    "",
-    "",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
-aligns = [
-    "'Select' aligns",
-    "not aligned yet",
-    str(p),
-    "",
-    "",
-    "left_right(-1)",
-    "left_right(1)",
-    "align()",
-    "",
-]
-polar = [
-    "'Select' Polaris",
-    offset_str,
-    "",
-    "",
-    "",
-    "left_right(-1)",
-    "left_right(1)",
-    "measure_offset()",
-    "",
-]
-reset = [
-    "'Select' Resets",
-    offset_str,
-    "",
-    "",
-    "",
-    "left_right(-1)",
-    "",
-    "reset_offset()",
-    "",
-]
-summary = ["", "", "", "up_down(-1)", "", "", "left_right(1)", "go_solve()", ""]
-exp = [
-    "Exposure",
-    param["Exposure"],
-    "",
-    "up_down_inc(1,1)",
-    "up_down_inc(1,-1)",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
-gn = [
-    "Gain",
-    param["Gain"],
-    "",
-    "up_down_inc(2,1)",
-    "up_down_inc(2,-1)",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
-mode = [
-    "Test mode",
-    int(param["Test mode"]),
-    "",
-    "flip()",
-    "flip()",
-    "left_right(-1)",
-    "left_right(1)",
-    "go_solve()",
-    "goto()",
-]
-status = [
-    "Nexus via " + nexus.get_nexus_link(),
-    "Nex align " + str(nexus.is_aligned()),
-    "Brightness",
-    "",
-    "",
-    "left_right(-1)",
-    "",
-    "go_solve()",
-    "goto()",
-]
-
-arr = np.array(
-    [
-        [home, nex, sol, delta, aligns, polar, reset],
-        [summary, exp, gn, mode, status, status, status],
+    handpad.display("ScopeDog eFinder", "Ready", "")
+    # array determines what is displayed, computed and what each button does for each screen.
+    # [first line,second line,third line, up button action,down...,left...,right...,select button short press action, long press action]
+    # empty string does nothing.
+    # example: left_right(-1) allows left button to scroll to the next left screen
+    # button texts are infact def functions
+    p = ""
+    home = [
+        "ScopeDog",
+        "eFinder",
+        "ver" + version,
+        "",
+        "up_down(1)",
+        "",
+        "left_right(1)",
+        "go_solve()",
+        "",
     ]
-)
-update_summary()
-deg_x, deg_y, dxstr, dystr = common.dxdy2pixel(float(param["d_x"]), float(param["d_y"]))
-offset_str = dxstr + "," + dystr
-new_arr = nexus.read_altAz(arr)
-arr = new_arr
-if nexus.is_aligned() == True:
-    arr[0, 4][1] = "Nexus is aligned"
-    arr[0, 4][0] = "'Select' syncs"
+    nex = [
+        "Nex: RA ",
+        "    Dec ",
+        "",
+        "",
+        "",
+        "left_right(-1)",
+        "left_right(1)",
+        "go_solve()",
+        "goto()",
+    ]
+    sol = [
+        "No solution yet",
+        "'select' solves",
+        "",
+        "",
+        "",
+        "left_right(-1)",
+        "left_right(1)",
+        "go_solve()",
+        "goto()",
+    ]
+    delta = [
+        "Delta: No solve",
+        "'select' solves",
+        "",
+        "",
+        "",
+        "left_right(-1)",
+        "left_right(1)",
+        "go_solve()",
+        "goto()",
+    ]
+    aligns = [
+        "'Select' aligns",
+        "not aligned yet",
+        str(p),
+        "",
+        "",
+        "left_right(-1)",
+        "left_right(1)",
+        "align()",
+        "",
+    ]
+    polar = [
+        "'Select' Polaris",
+        offset_str,
+        "",
+        "",
+        "",
+        "left_right(-1)",
+        "left_right(1)",
+        "measure_offset()",
+        "",
+    ]
+    reset = [
+        "'Select' Resets",
+        offset_str,
+        "",
+        "",
+        "",
+        "left_right(-1)",
+        "",
+        "reset_offset()",
+        "",
+    ]
+    summary = ["", "", "", "up_down(-1)", "", "", "left_right(1)", "go_solve()", ""]
+    exp = [
+        "Exposure",
+        param["Exposure"],
+        "",
+        "up_down_inc(1,1)",
+        "up_down_inc(1,-1)",
+        "left_right(-1)",
+        "left_right(1)",
+        "go_solve()",
+        "goto()",
+    ]
+    gn = [
+        "Gain",
+        param["Gain"],
+        "",
+        "up_down_inc(2,1)",
+        "up_down_inc(2,-1)",
+        "left_right(-1)",
+        "left_right(1)",
+        "go_solve()",
+        "goto()",
+    ]
+    mode = [
+        "Test mode",
+        int(param["Test mode"]),
+        "",
+        "flip()",
+        "flip()",
+        "left_right(-1)",
+        "left_right(1)",
+        "go_solve()",
+        "goto()",
+    ]
+    status = [
+        "Nexus via " + nexus.get_nexus_link(),
+        "Nex align " + str(nexus.is_aligned()),
+        "Brightness",
+        "",
+        "",
+        "left_right(-1)",
+        "",
+        "go_solve()",
+        "goto()",
+    ]
+
+    arr = np.array(
+        [
+            [home, nex, sol, delta, aligns, polar, reset],
+            [summary, exp, gn, mode, status, status, status],
+        ]
+    )
+    update_summary()
+    deg_x, deg_y, dxstr, dystr = common.dxdy2pixel(float(param["d_x"]), float(param["d_y"]))
+    offset_str = dxstr + "," + dystr
+    new_arr = nexus.read_altAz(arr)
+    arr = new_arr
+    if nexus.is_aligned() == True:
+        arr[0, 4][1] = "Nexus is aligned"
+        arr[0, 4][0] = "'Select' syncs"
 
 
-camera = common.pick_camera(param["Camera Type"], handpad, images_path)
+    camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
+    camera_debug = common.pick_camera('TEST', handpad, images_path)
+    camera = common.pick_camera(camera_type, handpad, images_path)
 
-handpad.display("ScopeDog eFinder", "v" + version, "")
-button = ""
-# main program loop, scan buttons and refresh display
-
-scan = threading.Thread(target=reader)
-scan.daemon = True
-scan.start()
-
-while True:  # next loop looks for button press and sets display option x,y
-    if button == "21":
-        exec(arr[x, y][7])
-    elif button == "20":
-        exec(arr[x, y][8])
-    elif button == "19":
-        exec(arr[x, y][4])
-    elif button == "17":
-        exec(arr[x, y][3])
-    elif button == "16":
-        exec(arr[x, y][5])
-    elif button == "18":
-        exec(arr[x, y][6])
+    handpad.display("ScopeDog eFinder", "v" + version, "")
     button = ""
-    time.sleep(0.1)
+    # main program loop, scan buttons and refresh display
+
+    scan = threading.Thread(target=reader)
+    scan.daemon = True
+    scan.start()
+
+    while True:  # next loop looks for button press and sets display option x,y
+        if button == "21":
+            exec(arr[x, y][7])
+        elif button == "20":
+            exec(arr[x, y][8])
+        elif button == "19":
+            exec(arr[x, y][4])
+        elif button == "17":
+            exec(arr[x, y][3])
+        elif button == "16":
+            exec(arr[x, y][5])
+        elif button == "18":
+            exec(arr[x, y][6])
+        button = ""
+        time.sleep(0.1)
+
+if __name__ == "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logging.basicConfig(
+        format="%(asctime)s %(name)s: %(levelname)s %(message)s")
+    parser = argparse.ArgumentParser(description="eFinder")
+    parser.add_argument(
+        "-fh", "--fakehandpad", help="Use a fake handpad", default=False, action='store_true', required=False
+    )
+    parser.add_argument(
+        "-fn", "--fakenexus", help="Use a fake nexus", default=False, action='store_true', required=False
+    )
+    parser.add_argument(
+        "-fc", "--fakecamera", help="Use a fake camera", default=False, action='store_true', required=False
+    )
+    parser.add_argument(
+        "-x", "--verbose", help="Set logging to debug mode", action="store_true"
+    )
+    args = parser.parse_args()
+    # add the handlers to the logger
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
+    main(not args.fakehandpad, not args.fakenexus, args.fakecamera)
+

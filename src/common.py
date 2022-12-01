@@ -1,5 +1,6 @@
 import subprocess
 import re
+from CameraInterface import CameraInterface
 from skyfield.api import load, Star, wgs84
 import math
 from pathlib import Path
@@ -89,8 +90,8 @@ class Common:
         delta_alt = 60 * (delta_alt)  # in arcminutes
         return delta_az, delta_alt 
 
-    def pick_camera(self, camera_type, handpad, images_path):
-        camera = None
+    def pick_camera(self, camera_type, handpad, images_path) -> CameraInterface:
+        camera: CameraInterface = CameraInterface()
         if camera_type == 'ASI':
             import ASICamera
             camera = ASICamera.ASICamera(handpad, images_path)
