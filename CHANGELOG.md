@@ -1,23 +1,30 @@
 # Changelog for eFinder software
 
 ## Version 16_5
+
 [Mike Rosseel]
+
 - Extracted common functions from eFinder.py and eFinderVNCGui.py
 - Extracted platesolving to it's own class and used that class in eFinder.py and eFinderVNCGui.py
 - removed all Solver dir references, files are now either in the eFinder directory, in the Stills folder or on /dev/shm/images
 - used Path everywhere for cleaner file handling
 
 [Keith Venables]
+
 - eFinder did not handle negative declination values
 
 ## Version 16_4
+
 [Mike Rosseel]
+
 - Introduced argparse to eFinderVNCGui.py to make CLI configuration easier, and later down the road merge it with eFinder.py
 - Added Debug classes for Camera, Handpad and Nexus, so that the program can be started without these attached.
 - added poetry dependency management
 
 ## Version 16_3
+
 [Keith Venables]
+
 - Resolved problem with Nexus DSC not returning its own GoTo target coordinates (using LX200 protocol). New Nexus firmware released on 17th Nov 2022
 - Cleaned up GUI panel, removing redundant check boxes (finder focallength and goto source). Moved graticule checkbox to same sub-panel other display options.
 - Added new test images (test.jpg & polaris.jpg) that match the 50mm default focal length. Removed all code references to choice of 200mm lens.
@@ -25,13 +32,17 @@
 - removed bug whereby in test mode the wrong scale was being used to generate offsets.
 
 ## Version 16
+
 [Keith Venables]
+
 - Added ability for user to adjust OLED brightness on the handpad. (main.py)
 - Fixed a bug where the RA & Dec wasnt being tagged to the saved image file name.
 	Nexus.py
 
 ## Version 15
+
 [Keith Venables]
+
 - Added support for QHY cameras (only tested so far with a QHY5L-II Mono)
 	install the following to ~/Solver
 	libqhy.py
@@ -45,7 +56,9 @@
 - removes support for LCD display module (ie OLED only)
 
 ## Version 14
+
 [Keith Venables]
+
 - Fixed a bug on the handpad version whereby in the final 'status' screen, use of the up or down buttons crashed the code.
 
 - Fixed a bug that prevents handpad saved exposure & gain preferences from being displayed on the GUI.
