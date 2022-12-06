@@ -32,6 +32,6 @@ wget http://data.astrometry.net/4100/index-4111.fits
 # Install the latest version of eFinder
 cd $HOME/eFinder
 sudo -u efinder /home/efinder/.local/bin/poetry install
-sudo -u efinder SHELL=/bin/bash poetry shell
+sudo -u efinder SHELL=/bin/bash /home/efinder/.local/bin/poetry shell
 echo "now install the ASI/QHY drivers and when ready run the following command to test everything:"
 echo "python src/eFinderVNCGui.py"
