@@ -22,7 +22,7 @@ make
 make py
 make extra
 sudo make install
-export PATH=$PATH:/usr/local/astrometry/bin
+echo 'export PATH="$PATH:/usr/local/astrometry/bin"' >> /etc/profile
 cd /usr/local/astrometry/data
 wget http://data.astrometry.net/4100/index-4107.fits
 wget http://data.astrometry.net/4100/index-4108.fits
@@ -30,8 +30,6 @@ wget http://data.astrometry.net/4100/index-4109.fits
 wget http://data.astrometry.net/4100/index-4110.fits
 wget http://data.astrometry.net/4100/index-4111.fits
 # Install the latest version of eFinder
-cd $HOME
-sudo -u efinder git clone git@github.com:WimDeMeester/eFinder.git eFinder
 cd $HOME/eFinder
 sudo -u efinder /home/efinder/.local/bin/poetry install
 sudo -u efinder SHELL=/bin/bash poetry shell
