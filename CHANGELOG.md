@@ -12,6 +12,8 @@
 [Keith Venables]
 
 - eFinder did not handle negative declination values
+- Bug in check align status
+- More rugged load of parameters
 
 ## Version 16_4
 
