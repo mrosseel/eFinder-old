@@ -130,14 +130,14 @@ def align():
     p = nexus.get(":GW#")
     print("Align status reply ", p)
     align_count += 1
-    if p != "AT2#":
+    if p != "AT2":
         handpad.display(
             "'select' aligns",
             "align count: " + str(align_count),
             "Nexus reply: " + p[0:3],
         )
     else:
-        if p == "AT2#":
+        if p == "AT2":
             sync_count += 1
             handpad.display(
                 "'select' syncs",
