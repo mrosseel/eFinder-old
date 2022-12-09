@@ -91,14 +91,13 @@ class Common:
 
     def pick_camera(self, camera_type, handpad, images_path):
         camera = None
-        if camera_type == 'ASI':
+        if camera_type in 'ASI':
             import ASICamera
             camera = ASICamera.ASICamera(handpad, images_path)
-        elif camera_type == 'QHY':
+        elif camera_type in 'QHY':
             import QHYCamera
             camera = QHYCamera.QHYCamera(handpad)
-        elif camera_type == 'TEST':
+        elif camera_type in 'TEST':
             import CameraDebug
             camera = CameraDebug.CameraDebug(images_path)
         return camera
-
