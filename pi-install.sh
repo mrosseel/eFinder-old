@@ -33,5 +33,6 @@ wget http://data.astrometry.net/4100/index-4111.fits
 cd $HOME/eFinder
 sudo -u efinder /home/efinder/.local/bin/poetry install
 sudo -u efinder SHELL=/bin/bash /home/efinder/.local/bin/poetry shell
+sudo systemctl enable vncserver-x11-serviced.service
 echo "now install the ASI/QHY drivers and when ready run the following command to test everything:"
 echo "python src/eFinderVNCGui.py"

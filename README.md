@@ -1,7 +1,6 @@
 # ScopeDog eFinder
 
 - [ScopeDog eFinder](#scopedog-efinder)
-  - [Source code](#source-code)
   - [Needed parts](#needed-parts)
     - [Purchase of the hardware](#purchase-of-the-hardware)
   - [Nexus DSC Pro](#nexus-dsc-pro)
@@ -25,10 +24,6 @@
   - [Development environment](#development-environment)
     - [Poetry](#poetry)
     - [Docker](#docker)
-
-## Source code
-
-- The source code can be found at [google drive](https://drive.google.com/drive/folders/1GnNv5xhHqUr66mJKaSsVWqEgyuoLcbI8).
 
 ## Needed parts
 
@@ -84,13 +79,14 @@ Make sure the following settings are set on the Network page:
 #### Install OS and needed dependencies
 
 - Download the [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-- Install the standard 32bit Raspberry Pi OS.
-- Enter *efinder* as username, *efinder* as password.
+- Select the standard 32bit Raspberry Pi OS.
+- In the settings, enter *efinder* as username, *efinder* as password, and *efinder.local* as hostname.
+- Start the installation of the OS.
 - Checkout the eFinder software from GitHub
 
 ```bash
 cd ~
-git clone git@github.com:WimDeMeester/eFinder.git eFinder
+git clone https://github.com/WimDeMeester/eFinder.git eFinder
 ```
 
 - Install all dependencies
@@ -98,6 +94,12 @@ git clone git@github.com:WimDeMeester/eFinder.git eFinder
 ```bash
 cd eFinder
 sudo ./pi-install.sh
+```
+
+- Change the resolution for the vnc server, by starting
+
+```bash
+sudo raspi-config
 ```
 
 - Reboot
@@ -108,13 +110,13 @@ sudo ./pi-install.sh
 - Unpack the SDK:
 
 ```bash
-bunzip2 ASI_linux_mac_SDK_V1.26.tar.bz2
-tar xvf ASI_linux_mac_SDK_V1.26.tar
-cd ASI_linux_mac_SDK_V1.26/lib/
+wget "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas" -O ASI_linux_mac_SDK.tar.bz2
+bunzip2 ASI_linux_mac_SDK.tar.bz2
+tar xvf ASI_linux_mac_SDK.tar
+cd ASI_linux_mac_SDK_V1.27/lib/
 sudo mkdir /lib/zwoasi
 sudo cp -r * /lib/zwoasi/
 sudo install asi.rules /lib/udev/rules.d
-pip3 install zwoasi
 ```
 
 #### Start eFinder
@@ -136,6 +138,8 @@ Run the VNC Gui version of the app without having a handpad, a camera or a nexus
 
 `python src/eFinderVNCGUI.py -fh -fn -fc`
 
+An easier way to start the app is executing **scripts/start.sh** for the headless version and **scripts/startVNCGUI.sh** for the GUI version.
+
 #### Start eFinder automatically after boot
 
 - Find the PATH
@@ -155,8 +159,10 @@ crontab -e
 ```bash
 export PATH=<The returned path from the echo $PATH command>
 DISPLAY=:0
-@reboot sleep 20 && (cd /home/efinder/eFinder ; /home/efinder/.local/bin/poetry shell ; python /home/efinder/eFinder/src/eFinder.py > /home/efinder/logs.txt 2>&1)
+@reboot sleep 20 && (/home/efinder/eFinder/scripts/start.sh > /home/efinder/logs.txt 2>&1)
 ```
+
+It is not possible to start the VNC GUI version automatically from crontab.
 
 #### Install RTL8192EU driver for the TP-LINK TL-WN823N
 
@@ -211,8 +217,8 @@ sudo reboot
 - Disable the Wifi card from the Raspberry Pi by adding the following lines to ***/etc/modprobe.d/raspi-blacklist.conf***
 
 ```bash
-blacklist brcmfmac
-blacklist brcmutil
+sudo bash -c 'echo "blacklist brcmfmac" >> /etc/modprobe.d/raspi-blacklist.conf'
+sudo bash -c 'echo "blacklist brcmutil" >> /etc/modprobe.d/raspi-blacklist.conf'
 ```
 
 - Reboot the system
