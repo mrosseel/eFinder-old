@@ -1,5 +1,5 @@
 import serial
-
+import sys
 
 class Handpad:
     """All methods to work with the handpad"""
@@ -32,7 +32,7 @@ class Handpad:
             self.USB_module = True
         except Exception as ex:
             print("ERROR: no handpad display box found")
-            exit()
+            sys.exit()
 
         self.display("ScopeDog", "eFinder v" + self.version, "")
         print("  USB:", self.USB_module)
