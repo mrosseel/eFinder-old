@@ -60,6 +60,7 @@ As I live in Belgium, this section is very Europe-centric.  I ordered the ASI ca
 - Press and hold the OK button and turn the Nexus DSC Pro.
 - A screen is shown asking if it is OK to update the firmware.  Press OK and wait till the update is completed.
 - In the info menu, the correct version of the firmware should be shown (1.1.18).
+- In version 1.1.18 of the Nexus DSC Pro firmware, there is a problem with the alignment. An easy workaround is to select 'two stars w/o Alt Ref’ in Align set up.
 
 ### Network settings on the Nexus DSC Pro
 
@@ -265,12 +266,11 @@ The changelog of the software can be found [here](CHANGELOG.md).
 
 ![image](doc/menu.png)
 
-
 ## Development environment
 
 ### Poetry
 
-*[Install poetry][https://python-poetry.org/docs/#installation] to manage the python dependencies.*
+*[Install poetry](https://python-poetry.org/docs/#installation) to manage the python dependencies.*
 
 Install the dependencies and the virtual environment (do this once):
 
