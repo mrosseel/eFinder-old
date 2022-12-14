@@ -1,6 +1,6 @@
 # Changelog for eFinder software
 
-## Version 16_5
+## Version 17.0
 
 [Mike Rosseel]
 
@@ -8,20 +8,20 @@
 - Extracted platesolving to it's own class and used that class in eFinder.py and eFinderVNCGui.py
 - removed all Solver dir references, files are now either in the eFinder directory, in the Stills folder or on /dev/shm/images
 - used Path everywhere for cleaner file handling
-
-[Keith Venables]
-
-- eFinder did not handle negative declination values
-- Bug in check align status
-- More rugged load of parameters
-
-## Version 16_4
-
-[Mike Rosseel]
-
 - Introduced argparse to eFinderVNCGui.py to make CLI configuration easier, and later down the road merge it with eFinder.py
 - Added Debug classes for Camera, Handpad and Nexus, so that the program can be started without these attached.
 - added poetry dependency management
+
+[Keith Venables]
+
+- Issue #27: eFinder did not handle negative declination values
+- Issue #31: Bug in check align status
+- Issue #32: More rugged load of parameters
+
+[Wim De Meester]
+
+- Issue #36: Aligning stars does not work...
+- Issue #30: Startup scripts for eFinder.py
 
 ## Version 16_3
 

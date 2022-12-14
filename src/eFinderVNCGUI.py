@@ -75,6 +75,7 @@ eye_piece = []
 radec = "no_radec"
 f_g = "red"
 b_g = "black"
+global solved_radec
 solved_radec = 0, 0
 usb = False
 pix_scale = 15
@@ -176,7 +177,7 @@ def capture():
 
 
 def solveImage(is_offset=False):
-    global scopeAlt, solved_altaz, star_name, star_name_offset, solved
+    global scopeAlt, solved_altaz, star_name, star_name_offset, solved, solved_radec
     result, elapsed_time = platesolve.solve_image(is_offset)
     elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
 
@@ -477,7 +478,7 @@ def moveScope(dAz, dAlt):
 
 
 def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync point. LX200 protocol.
-    global align_count, p
+    global align_count, p, solved_radec
     # readNexus()
     capture()
     solveImage()
@@ -489,14 +490,14 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
 
     try:
         valid = nexus.get(align_ra)
-        logging.info("sent align RA command:", align_ra)
+        logging.info("%s %s" % ("sent align RA command:", align_ra))
         box_write("sent " + align_ra, True)
         if valid == "0":
             box_write("invalid position", True)
             tk.Label(window, text="invalid alignment").place(x=20, y=680)
             return
         valid = nexus.get(align_dec)
-        logging.info("sent align Dec command:", align_dec)
+        logging.info("%s %s" % ("sent align Dec command:", align_dec))
         box_write("sent " + align_dec, True)
         if valid == "0":
             box_write("invalid position", True)
@@ -505,9 +506,9 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
         reply = nexus.get(":CM#")
         logging.info(":CM#")
         box_write("sent :CM#", False)
-        logging.info("reply: ", reply)
+        logging.info("%s %s" % ("reply: ", reply))
         p = nexus.get(":GW#")
-        logging.info("Align status reply ", p[0:3])
+        logging.info("%s %s" % ("Align status reply ", p[0:3]))
         box_write("Align reply:" + p[0:3], False)
         align_count += 1
     except Exception as ex:
@@ -624,7 +625,7 @@ def solve():
 
 
 def readTarget():
-    global goto_radec, goto_altaz, goto_ra, goto_dec
+    global goto_radec, goto_altaz, goto_ra, goto_dec, solved_altaz
     goto_ra = nexus.get(":Gr#")
     goto_dec = nexus.get(":Gd#")
     if (
@@ -709,6 +710,7 @@ def goto():
 
 
 def move():
+    global solved_altaz
     solveImage()
     image_show()
     if solved == False:
@@ -720,17 +722,17 @@ def move():
     if goto_ra[0] == "00" and goto_ra[1] == "00":
         box_write("no GoTo target", True)
         return
-    logging.info("goto RA & Dec", goto_ra, goto_dec)
+    logging.info("%s %s %s" % ("goto RA & Dec", goto_ra, goto_dec))
     ra = float(goto_ra[0]) + float(goto_ra[1]) / 60 + float(goto_ra[2]) / 3600
     dec = float(goto_dec[0]) + float(goto_dec[1]) / 60 + float(goto_dec[2]) / 3600
-    logging.info("lgoto radec", ra, dec)
+    logging.info("%s %s %s" % ("lgoto radec", ra, dec))
     alt_g, az_g = coordinates.conv_altaz(nexus, ra, dec)
-    logging.info("target Az Alt", az_g, alt_g)
+    logging.info("%s %s %s" % ("target Az Alt", az_g, alt_g))
     delta_Az = (az_g - solved_altaz[1]) * 60  # +ve move scope right
     delta_Alt = (alt_g - solved_altaz[0]) * 60  # +ve move scope up
     delta_Az_str = "{: .2f}".format(delta_Az)
     delta_Alt_str = "{: .2f}".format(delta_Alt)
-    logging.info("deltaAz, deltaAlt:", delta_Az_str, delta_Alt_str)
+    logging.info("%s %s %s" % ("deltaAz, deltaAlt:", delta_Az_str, delta_Alt_str))
     box_write("deltaAz : " + delta_Az_str, True)
     box_write("deltaAlt: " + delta_Alt_str, True)
     moveScope(delta_Az, delta_Alt)
@@ -790,7 +792,7 @@ def save_param():
 
 
 def do_button(event):
-    global handpad, coordinates
+    global handpad, coordinates, solved_radec
     logging.debug(f"button event: {button}")
     if button == "21":
         handpad.display("Capturing image", "", "")
