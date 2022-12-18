@@ -1,7 +1,6 @@
 # ScopeDog eFinder
 
 - [ScopeDog eFinder](#scopedog-efinder)
-  - [Source code](#source-code)
   - [Needed parts](#needed-parts)
     - [Purchase of the hardware](#purchase-of-the-hardware)
   - [Nexus DSC Pro](#nexus-dsc-pro)
@@ -10,19 +9,14 @@
   - [Software](#software)
     - [Raspberry Pi 4](#raspberry-pi-4)
       - [Install OS and needed dependencies](#install-os-and-needed-dependencies)
-      - [Install astrometry.net](#install-astrometrynet)
       - [Install the ZWO ASI Linux SDK](#install-the-zwo-asi-linux-sdk)
+      - [Start eFinder](#start-efinder)
       - [Start eFinder automatically after boot](#start-efinder-automatically-after-boot)
       - [Install RTL8192EU driver for the TP-LINK TL-WN823N](#install-rtl8192eu-driver-for-the-tp-link-tl-wn823n)
     - [The Raspberry Pi Pico handbox](#the-raspberry-pi-pico-handbox)
     - [Changelog](#changelog)
   - [Hardware](#hardware)
     - [Adding the OLED display to the Raspberry Pi Pico](#adding-the-oled-display-to-the-raspberry-pi-pico)
-    - [Adding the little joystick to the Raspberry Pi Pico](#adding-the-little-joystick-to-the-raspberry-pi-pico)
-    - [Insert the Raspberry Pi Pico in a nice box](#insert-the-raspberry-pi-pico-in-a-nice-box)
-    - [Mounting the eFinder on the telescope](#mounting-the-efinder-on-the-telescope)
-  - [Testing the eFinder](#testing-the-efinder)
-    - [Testing the eFinder outside](#testing-the-efinder-outside)
     - [Connect to the Nexus DSC wifi](#connect-to-the-nexus-dsc-wifi)
     - [How to work with the handpad](#how-to-work-with-the-handpad)
       - [In the VNC GUI version](#in-the-vnc-gui-version)
@@ -30,10 +24,6 @@
   - [Development environment](#development-environment)
     - [Poetry](#poetry)
     - [Docker](#docker)
-
-## Source code
-
-- The source code can be found at [google drive](https://drive.google.com/drive/folders/1GnNv5xhHqUr66mJKaSsVWqEgyuoLcbI8).
 
 ## Needed parts
 
@@ -70,6 +60,7 @@ As I live in Belgium, this section is very Europe-centric.  I ordered the ASI ca
 - Press and hold the OK button and turn the Nexus DSC Pro.
 - A screen is shown asking if it is OK to update the firmware.  Press OK and wait till the update is completed.
 - In the info menu, the correct version of the firmware should be shown (1.1.18).
+- In version 1.1.18 of the Nexus DSC Pro firmware, there is a problem with the alignment. An easy workaround is to select 'two stars w/o Alt Ref’ in Align set up.
 
 ### Network settings on the Nexus DSC Pro
 
@@ -89,89 +80,30 @@ Make sure the following settings are set on the Network page:
 #### Install OS and needed dependencies
 
 - Download the [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-- Install the standard 32bit Raspberry Pi OS.
-- Enter *efinder* as username, *efinder* as password.
-- Install applications
-
-```bash
-# For remote Finder access from a Mac
-sudo apt install netatalk
-
-sudo apt install libatlas3-base libbz2-dev libcairo2-dev libnetpbm10-dev netpbm libpng-dev libjpeg-dev zlib1g-dev swig libcfitsio-dev imagemagick python3-pil.imagetk
-
-# Install the needed python libraries
-pip install numpy==1.23.1
-pip install fitsio
-pip install astropy
-pip install pyfits
-pip install Skyfield
-```
-
-- Configure netatalk.  Using netatalk, you can select *Network* in the macOS Finder and select *raspberry* to see the contents of the /home directory of the Raspberry Pi on your Mac. Make sure the */etc/netatalk/afp.conf* configuration file is as follows:
-
-```bash
-[Homes]
- basedir regex = /home
-```
-
-- Restart netatalk:
-
-```bash
-sudo systemctl restart netatalk
-```
-
-- Edit */etc/profile*. Add the following line to the end of the file:
-
-```bash
-export PATH=/home/efinder/.local/bin:/usr/local/astrometry/bin:$PATH
-```
-
-- Remove the need for password during code execution:
-
-```bash
-sudo visudo
-```
-
-- Add the following line to the end:
-
-```bash
-efinder ALL = NOPASSWD: /bin/date, /sbin/reboot
-```
-
+- Select the standard 32bit Raspberry Pi OS.
+- In the settings, enter *efinder* as username, *efinder* as password, and *efinder.local* as hostname.
+- Start the installation of the OS.
 - Checkout the eFinder software from GitHub
 
 ```bash
 cd ~
-git clone git@github.com:WimDeMeester/eFinder.git eFinder
+git clone https://github.com/WimDeMeester/eFinder.git eFinder
+```
+
+- Install all dependencies
+
+```bash
+cd eFinder
+sudo ./pi-install.sh
+```
+
+- Change the resolution for the vnc server, by starting
+
+```bash
+sudo raspi-config
 ```
 
 - Reboot
-
-#### Install astrometry.net
-
-- Download the latest version (0.91) of astrometry.net from [GitHub](https://github.com/dstndstn/astrometry.net/releases/tag/0.91).
-- Unpack the tar.gz file
-
-```bash
-tar zxvf astrometry.net-0.91.tar.gz
-```
-
-- Build astrometry.net
-
-```bash
-cd astrometry.net-0.91
-sudo make
-sudo make py
-sudo make extra
-sudo make install
-```
-
-- Copy some index and catalog files:
-
-```bash
-sudo cp /home/efinder/Downloads/ver\ 11\ non-astroberry\ Raspian\ build/Indices/index-41* /usr/local/astrometry/data/
-sudo cp -r /home/efinder/Downloads/ver\ 11\ non-astroberry\ Raspian\ build/annotate_data/ /usr/local/astrometry/
-```
 
 #### Install the ZWO ASI Linux SDK
 
@@ -179,14 +111,35 @@ sudo cp -r /home/efinder/Downloads/ver\ 11\ non-astroberry\ Raspian\ build/annot
 - Unpack the SDK:
 
 ```bash
-bunzip2 ASI_linux_mac_SDK_V1.26.tar.bz2
-tar xvf ASI_linux_mac_SDK_V1.26.tar
-cd ASI_linux_mac_SDK_V1.26/lib/
+wget "https://dl.zwoastro.com/software?app=AsiCameraDriverSdk&platform=macIntel&region=Overseas" -O ASI_linux_mac_SDK.tar.bz2
+bunzip2 ASI_linux_mac_SDK.tar.bz2
+tar xvf ASI_linux_mac_SDK.tar
+cd ASI_linux_mac_SDK_V1.27/lib/
 sudo mkdir /lib/zwoasi
 sudo cp -r * /lib/zwoasi/
 sudo install asi.rules /lib/udev/rules.d
-pip3 install zwoasi
 ```
+
+#### Start eFinder
+
+Activate a python virtual environment (do this every time):
+
+`poetry shell`
+
+Run the VNC Gui version of the app:
+
+`python src/eFinderVNCGUI.py`
+
+The headless version can be started using the command:
+
+`python src/eFinder.py`
+
+Run the VNC Gui version of the app without having a handpad, a camera or a nexus device.
+(The headless version has no command line options at the moment)
+
+`python src/eFinderVNCGUI.py -fh -fn -fc`
+
+An easier way to start the app is executing **scripts/start.sh** for the headless version and **scripts/startVNCGUI.sh** for the GUI version.
 
 #### Start eFinder automatically after boot
 
@@ -207,13 +160,10 @@ crontab -e
 ```bash
 export PATH=<The returned path from the echo $PATH command>
 DISPLAY=:0
+@reboot sleep 20 && (/home/efinder/eFinder/scripts/start.sh > /home/efinder/logs.txt 2>&1)
 ```
 
-- Add the following line to start up the eFinder code automatically:
-
-```bash
-@reboot sleep 20 && (cd /home/efinder/eFinder ; /usr/bin/python /home/efinder/eFinder/src/eFinderVNCGUI.py >> /home/efinder/logs.txt 2>&1)
-```
+It is not possible to start the VNC GUI version automatically from crontab.
 
 #### Install RTL8192EU driver for the TP-LINK TL-WN823N
 
@@ -268,8 +218,8 @@ sudo reboot
 - Disable the Wifi card from the Raspberry Pi by adding the following lines to ***/etc/modprobe.d/raspi-blacklist.conf***
 
 ```bash
-blacklist brcmfmac
-blacklist brcmutil
+sudo bash -c 'echo "blacklist brcmfmac" >> /etc/modprobe.d/raspi-blacklist.conf'
+sudo bash -c 'echo "blacklist brcmutil" >> /etc/modprobe.d/raspi-blacklist.conf'
 ```
 
 - Reboot the system
@@ -299,19 +249,6 @@ The changelog of the software can be found [here](CHANGELOG.md).
 - Solder the header to the Raspberry Pi Pico.  Check if you are soldering the header to the correct side of the Raspberry Pi Pico (I soldered it the wrong side first).
 - Make sure to also solder a cable to GP16, GP17, GND, GP18, GP19, and GP21.
 - Push the OLED display on the soldered header.
-- ADD PICTURES!!!
-
-### Adding the little joystick to the Raspberry Pi Pico
-
-### Insert the Raspberry Pi Pico in a nice box
-
-### Mounting the eFinder on the telescope
-
-## Testing the eFinder
-
-- For the images that are in the repository (polaris and M 13), set to 200mm.
-
-### Testing the eFinder outside
 
 ### Connect to the Nexus DSC wifi
 
@@ -329,12 +266,11 @@ The changelog of the software can be found [here](CHANGELOG.md).
 
 ![image](doc/menu.png)
 
-
 ## Development environment
 
 ### Poetry
 
-*[Install poetry][https://python-poetry.org/docs/#installation] to manage the python dependencies.*
+*[Install poetry](https://python-poetry.org/docs/#installation) to manage the python dependencies.*
 
 Install the dependencies and the virtual environment (do this once):
 

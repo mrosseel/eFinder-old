@@ -47,9 +47,9 @@ import utils
 # comment out if this is the autoboot program
 os.system("pkill -9 -f eFinder.py")
 
-cwd_path: Path = Path.cwd() 
+cwd_path: Path = Path.cwd()
 images_path: Path = Path("/dev/shm/images")
-utils.create_path(images_path) # create dir if it doesn't yet exist
+utils.create_path(images_path)  # create dir if it doesn't yet exist
 
 deltaAz = deltaAlt = 0
 scope_x = scope_y = 0
@@ -73,6 +73,9 @@ solved = False
 box_list = ["", "", "", "", "", ""]
 eye_piece = []
 radec = "no_radec"
+f_g = "red"
+b_g = "black"
+global solved_radec
 solved_radec = 0, 0
 pix_scale = 15
 
@@ -755,8 +758,43 @@ class EFinder():
         self.pix_scale = pix_scale
 
 
-
-
+def readNexus():
+    """Read the AltAz from the Nexus DSC and put the correct numbers on the GUI."""
+    nexus.read_altAz(None)
+    nexus_radec = nexus.get_radec()
+    nexus_altaz = nexus.get_altAz()
+    tk.Label(
+        window,
+        width=10,
+        text=coordinates.hh2dms(nexus_radec[0]),
+        anchor="e",
+        bg=b_g,
+        fg=f_g,
+    ).place(x=225, y=804)
+    tk.Label(
+        window,
+        width=10,
+        anchor="e",
+        text=coordinates.dd2dms(nexus_radec[1]),
+        bg=b_g,
+        fg=f_g,
+    ).place(x=225, y=826)
+    tk.Label(
+        window,
+        width=10,
+        anchor="e",
+        text=coordinates.ddd2dms(nexus_altaz[1]),
+        bg=b_g,
+        fg=f_g,
+    ).place(x=225, y=870)
+    tk.Label(
+        window,
+        width=10,
+        anchor="e",
+        text=coordinates.dd2dms(nexus_altaz[0]),
+        bg=b_g,
+        fg=f_g,
+    ).place(x=225, y=892)
 
 
 
@@ -767,23 +805,20 @@ def capture(camera, camera_debug, exposure, gain, polaris, m31):
     use_camera = camera
     extras = {}
     if polaris.get() == "1":
-        extras['testimage'] = 'polaris'
+        extras["testimage"] = "polaris"
         use_camera = camera_debug
     elif m31.get() == "1":
-        extras['testimage'] = 'm31'
+        extras["testimage"] = "m31"
         use_camera = camera_debug
     radec = nexus.get_short()
     use_camera.capture(
-        int(1000000 * float(exposure.get())),
-        int(float(gain.get())),
-        radec,
-        extras
+        int(1000000 * float(exposure.get())), int(float(gain.get())), radec, extras
     )
     image_show()
 
 
 def solveImage(is_offset=False):
-    global scopeAlt, solved_altaz, star_name, star_name_offset, solved
+    global scopeAlt, solved_altaz, star_name, star_name_offset, solved, solved_radec
     result, elapsed_time = platesolve.solve_image(is_offset)
     elapsed_time_str = f"elapsed time {elapsed_time:.2f} sec"
 
@@ -796,7 +831,7 @@ def solveImage(is_offset=False):
     if is_offset:
         table, h = fitsio.read(images_path / "capture.axy", header=True)
         star_name_offset = table[0][0], table[0][1]
-        logging.debug(f'(capture.axy gives) x,y {table[0][0]} {table[0][1]}')
+        logging.debug(f"(capture.axy gives) x,y {table[0][0]} {table[0][1]}")
         if "The star" in result:
             lines = result.split("\n")
             for line in lines:
@@ -821,8 +856,21 @@ def solveImage(is_offset=False):
     deltaCalcGUI()
     readTarget()
 
-
-
+def solve_image_failed(b_g, f_g, elapsed_time, window):
+    box_write("Solve Failed", True)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=804)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=826)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=870)
+    tk.Label(
+        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
+    ).place(x=410, y=892)
+    tk.Label(window, text=elapsed_time, bg=b_g, fg=f_g).place(x=315, y=936)
 
 def image_show():
     global manual_angle, img3, EPlength, scopeAlt
@@ -830,9 +878,9 @@ def image_show():
     width, height = img2.size
     img2 = img2.resize((1014, 760), Resampling.LANCZOS)  # original is 1280 x 960
     width, height = img2.size
-    h = pix_scale * 960/60  # vertical finder field of view in arc min
-    w = pix_scale * 1280/60
-    w_offset = width * offset[0] * 60 / w 
+    h = pix_scale * 960 / 60  # vertical finder field of view in arc min
+    w = pix_scale * 1280 / 60
+    w_offset = width * offset[0] * 60 / w
     h_offset = height * offset[1] * 60 / h
     img2 = img2.convert("RGB")
     if grat.get() == "1":
@@ -852,8 +900,7 @@ def image_show():
     if EP.get() == "1":
         draw = ImageDraw.Draw(img2)
         tfov = (
-            (float(EPlength.get()) * height /
-             float(param["scope_focal_length"]))
+            (float(EPlength.get()) * height / float(param["scope_focal_length"]))
             * 60
             / h
         ) / 2  # half tfov in pixels
@@ -890,15 +937,24 @@ def image_show():
 
 def annotate_image():
     global img3, bright, hip, hd, abell, ngc, tycho2
-    scale_low = str(pix_scale * 0.9 * 1.2)  # * 1.2 is because image has been resized for the display panel
+    scale_low = str(
+        pix_scale * 0.9 * 1.2
+    )  # * 1.2 is because image has been resized for the display panel
     scale_high = str(pix_scale * 1.1 * 1.2)
     image_show()
     img3 = img3.save(images_path / "adjusted.jpg")
     # first need to re-solve the image as it is presented in the GUI, saved as 'adjusted.jpg'
-    annotate_cmd = "solve-field --no-plots --new-fits none --solved none --match none --corr none \
+    annotate_cmd = (
+        "solve-field --no-plots --new-fits none --solved none --match none --corr none \
             --rdls none --cpulimit 10 --temp-axy --overwrite --downsample 2 --no-remove-lines --uniformize 0 \
-            --scale-units arcsecperpix --scale-low " + scale_low + " \
-            --scale-high " + scale_high + " " + str(images_path / "adjusted.jpg")
+            --scale-units arcsecperpix --scale-low "
+        + scale_low
+        + " \
+            --scale-high "
+        + scale_high
+        + " "
+        + str(images_path / "adjusted.jpg")
+    )
     logging.debug(f"Annotating image with cmd: {annotate_cmd}")
     os.system(annotate_cmd)
     # now we can annotate the image adjusted.jpg
@@ -925,9 +981,24 @@ def annotate_image():
     )
     opt6 = " " if ngc.get() == "1" else " --no-ngc"
     try:  # try because the solve may have failed to produce adjusted.jpg
-        cmd = 'python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
-                --no-grid --tcolor="orange" --tsize="14" --no-const' + opt1 + opt2 + opt3 + opt4 + opt5 + opt6 + " " \
-                + " ".join([str(images_path / "adjusted.wcs"), str(images_path / "adjusted.jpg"), str(images_path / "adjusted_out.jpg")])
+        cmd = (
+            'python3 /usr/local/astrometry/lib/python/astrometry/plot/plotann.py \
+                --no-grid --tcolor="orange" --tsize="14" --no-const'
+            + opt1
+            + opt2
+            + opt3
+            + opt4
+            + opt5
+            + opt6
+            + " "
+            + " ".join(
+                [
+                    str(images_path / "adjusted.wcs"),
+                    str(images_path / "adjusted.jpg"),
+                    str(images_path / "adjusted_out.jpg"),
+                ]
+            )
+        )
         logging.debug(f"plotann cmd: {cmd}")
         os.system(cmd)
     except:
@@ -961,7 +1032,9 @@ def zoom_at(img, x, y, zoom):
 
 def deltaCalcGUI():
     global deltaAz, deltaAlt, solved_altaz
-    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
+    deltaAz, deltaAlt = common.deltaCalc(
+        nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt
+    )
     deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
     deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
     tk.Label(window, width=10, anchor="e", text=deltaAzstr, bg=b_g, fg=f_g).place(
@@ -971,12 +1044,12 @@ def deltaCalcGUI():
         x=315, y=892
     )
 
+
 def moveScope(dAz, dAlt):
     azPulse = abs(dAz / float(param["azSpeed"]))  # seconds
     altPulse = abs(dAlt / float(param["altSpeed"]))
     logging.debug(
-        "%s %.2f  %s  %.2f %s" % (
-            "azPulse:", azPulse, "altPulse:", altPulse, "seconds")
+        "%s %.2f  %s  %.2f %s" % ("azPulse:", azPulse, "altPulse:", altPulse, "seconds")
     )
     nexus.write("#:RG#")  # set move speed to guide
     eFinderGUI.box_write("moving scope in Az", True)
@@ -1007,7 +1080,7 @@ def moveScope(dAz, dAlt):
 
 
 def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync point. LX200 protocol.
-    global align_count, p
+    global align_count, p, solved_radec
     # readNexus()
     capture(camera, camera_debug, eFinderGUI.exposure, gain, polaris, m31)
     solveImage()
@@ -1019,14 +1092,14 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
 
     try:
         valid = nexus.get(align_ra)
-        logging.info("sent align RA command:", align_ra)
+        logging.info(f"sent align RA command: {align_ra}")
         eFinderGUI.box_write("sent " + align_ra, True)
         if valid == "0":
             eFinderGUI.box_write("invalid position", True)
             tk.Label(window, text="invalid alignment").place(x=20, y=680)
             return
         valid = nexus.get(align_dec)
-        logging.info("sent align Dec command:", align_dec)
+        logging.info(f"sent align Dec command: {align_dec}")
         eFinderGUI.box_write("sent " + align_dec, True)
         if valid == "0":
             eFinderGUI.box_write("invalid position", True)
@@ -1035,9 +1108,9 @@ def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync p
         reply = nexus.get(":CM#")
         logging.info(":CM#")
         eFinderGUI.box_write("sent :CM#", False)
-        logging.info("reply: ", reply)
+        logging.info(f"reply: {reply}")
         p = nexus.get(":GW#")
-        logging.info("Align status reply ", p[0:3])
+        logging.info(f"Align status reply {p[0:3]}")
         eFinderGUI.box_write("Align reply:" + p[0:3], False)
         align_count += 1
     except Exception as ex:
@@ -1074,7 +1147,9 @@ def measure_offset():
         )
     eFinderGUI.box_write(star_name, True)
     d_x, d_y, dxstr_new, dystr_new = common.pixel2dxdy(scope_x, scope_y)
-    logging.debug(f"Measured star with star name = {star_name} and {dxstr_new=} and {dystr_new}")
+    logging.debug(
+        f"Measured star with star name = {star_name} and {dxstr_new=} and {dystr_new}"
+    )
     offset_new = d_x, d_y
     tk.Label(
         window,
@@ -1151,19 +1226,22 @@ def solve():
 
 
 def readTarget():
-    global goto_radec, goto_altaz, goto_ra, goto_dec
+    global goto_radec, goto_altaz, goto_ra, goto_dec, solved_altaz
     goto_ra = nexus.get(":Gr#")
     goto_dec = nexus.get(":Gd#")
     if (
-         goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
+        goto_ra[0:2] == "00" and goto_ra[3:5] == "00"
     ):  # not a valid goto target set yet.
         eFinderGUI.box_write("no GoTo target", True)
         return
     ra = goto_ra.split(":")
     dec = re.split(r"[:*]", goto_dec)
     print("goto RA & Dec", goto_ra, goto_dec)
-    goto_radec = (float(ra[0]) + float(ra[1]) / 60 + float(ra[2]) / 3600), (
-        float(dec[0]) + float(dec[1]) / 60 + float(dec[2]) / 3600
+    goto_radec = (
+        float(ra[0]) + float(ra[1]) / 60 + float(ra[2]) / 3600
+    ), math.copysign(
+        abs(abs(float(dec[0])) + float(dec[1]) / 60 + float(dec[2]) / 3600),
+        float(dec[0]),
     )
     goto_altaz = coordinates.conv_altaz(nexus, *(goto_radec))
     tk.Label(
@@ -1233,6 +1311,7 @@ def goto():
 
 
 def move():
+    global solved_altaz
     solveImage()
     image_show()
     if solved == False:
@@ -1244,29 +1323,36 @@ def move():
     if goto_ra[0] == "00" and goto_ra[1] == "00":
         eFinderGUI.box_write("no GoTo target", True)
         return
-    logging.info("goto RA & Dec", goto_ra, goto_dec)
+    logging.info("%s %s %s" % ("goto RA & Dec", goto_ra, goto_dec))
     ra = float(goto_ra[0]) + float(goto_ra[1]) / 60 + float(goto_ra[2]) / 3600
-    dec = float(goto_dec[0]) + float(goto_dec[1]) / \
-        60 + float(goto_dec[2]) / 3600
-    logging.info("lgoto radec", ra, dec)
+    dec = float(goto_dec[0]) + float(goto_dec[1]) / 60 + float(goto_dec[2]) / 3600
+    logging.info("%s %s %s" % ("lgoto radec", ra, dec))
     alt_g, az_g = coordinates.conv_altaz(nexus, ra, dec)
-    logging.info("target Az Alt", az_g, alt_g)
+    logging.info("%s %s %s" % ("target Az Alt", az_g, alt_g))
     delta_Az = (az_g - solved_altaz[1]) * 60  # +ve move scope right
     delta_Alt = (alt_g - solved_altaz[0]) * 60  # +ve move scope up
     delta_Az_str = "{: .2f}".format(delta_Az)
     delta_Alt_str = "{: .2f}".format(delta_Alt)
-    logging.info("deltaAz, deltaAlt:", delta_Az_str, delta_Alt_str)
-    eFinderGUI.box_write("deltaAz : " + delta_Az_str, True)
-    eFinderGUI.box_write("deltaAlt: " + delta_Alt_str, True)
+    logging.info(f"deltaAz: {delta_Az_str}, deltaAlt: {deltaAltstr}")
+    eFinderGUI.box_write(f"deltaAz : {delta_Az_str}", True)
+    eFinderGUI.box_write(f"deltaAlt: {delta_Alt_str}", True)
     moveScope(delta_Az, delta_Alt)
     # could insert a new capture and solve?
 
 
 def on_closing():
     save_param()
-    handpad.display('Program closed', 'via VNCGUI', '')
+    handpad.display("Program closed", "via VNCGUI", "")
     sys.exit()
 
+def box_write(new_line, show_handpad):
+    global handpad
+    t = ts.now()
+    for i in range(5, 0, -1):
+        box_list[i] = box_list[i - 1]
+    box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
+    for i in range(0, 5, 1):
+        tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(x=1050, y=980 - i * 16)
 
 def reader():
     global button
@@ -1275,6 +1361,7 @@ def reader():
             button = handpad.get_box().readline().decode("ascii").strip("\r\n")
             window.event_generate("<<OLED_Button>>")
         time.sleep(0.1)
+
 
 def get_param(location=Path(cwd_path, "eFinder.config")):
     global eye_piece, param, expRange, gainRange
@@ -1292,6 +1379,7 @@ def get_param(location=Path(cwd_path, "eFinder.config")):
                 elif line[0].startswith("Gain_range"):
                     gainRange = line[1].split(",")
 
+
 def save_param():
     global param, exposure, polaris, m31
     param["Exposure"] = exposure.get()
@@ -1303,27 +1391,34 @@ def save_param():
 
 
 def do_button(event):
-    global handpad, coordinates
+    global handpad, coordinates, solved_radec
     logging.debug(f"button event: {button}")
-    if button == '21':
-        handpad.display('Capturing image', '', '')
+    if button == "21":
+        handpad.display("Capturing image", "", "")
         read_nexus_and_capture()
-        handpad.display('Solving image', '', '')
+        handpad.display("Solving image", "", "")
         solve()
-        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
-            solved_radec[1]), 'd:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
-    elif button == '17':  # up button
-        handpad.display('Performing', '  align', '')
+        handpad.display(
+            "RA:  " + coordinates.hh2dms(solved_radec[0]),
+            "Dec:" + coordinates.dd2dms(solved_radec[1]),
+            "d:" + str(deltaAz)[:6] + "," + str(deltaAlt)[:6],
+        )
+    elif button == "17":  # up button
+        handpad.display("Performing", "  align", "")
         align()
-        handpad.display('RA:  '+coordinates.hh2dms(
-            solved_radec[0]), 'Dec:'+coordinates.dd2dms(solved_radec[1]), 'Report:'+p)
-    elif button == '19':  # down button
-        handpad.display('Performing', '   GoTo++', '')
+        handpad.display(
+            "RA:  " + coordinates.hh2dms(solved_radec[0]),
+            "Dec:" + coordinates.dd2dms(solved_radec[1]),
+            "Report:" + p,
+        )
+    elif button == "19":  # down button
+        handpad.display("Performing", "   GoTo++", "")
         goto()
-        handpad.display('RA:  '+coordinates.hh2dms(solved_radec[0]), 'Dec:'+coordinates.dd2dms(
-            solved_radec[1]), 'd:'+str(deltaAz)[:6]+','+str(deltaAlt)[:6])
-
- 
+        handpad.display(
+            "RA:  " + coordinates.hh2dms(solved_radec[0]),
+            "Dec:" + coordinates.dd2dms(solved_radec[1]),
+            "d:" + str(deltaAz)[:6] + "," + str(deltaAlt)[:6],
+        )
 
 
 def main(realHandpad, realNexus, fakeCamera):
@@ -1335,7 +1430,11 @@ def main(realHandpad, realNexus, fakeCamera):
     logging.info(f"Starting eFinder version {version}...")
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
-    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
+    nexus = (
+        Nexus.Nexus(handpad, coordinates)
+        if realNexus
+        else NexusDebug(handpad, coordinates)
+    )
     platesolve = PlateSolve(pix_scale, images_path)
     eFinder = EFinder(pix_scale=15)
     eFinderGUI = EFinderGUI()
@@ -1348,12 +1447,16 @@ def main(realHandpad, realNexus, fakeCamera):
     earth = planets["earth"]
     ts = load.timescale()
     nexus.read()
-    camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
-    camera_debug = common.pick_camera('TEST', handpad, images_path)
+    camera_type = param["Camera Type"] if not fakeCamera else "TEST"
+    camera_debug = common.pick_camera("TEST", handpad, images_path)
     camera = common.pick_camera(camera_type, handpad, images_path)
 
     logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
-    handpad.display('eFinder via VNC', 'Select: Solves', 'Up:Align Dn:GoTo',)
+    handpad.display(
+        "eFinder via VNC",
+        "Select: Solves",
+        "Up:Align Dn:GoTo",
+    )
     # main program loop, using tkinter GUI
     window.title("ScopeDog eFinder v" + version)
     window.geometry("1300x1000+100+10")
@@ -1377,17 +1480,31 @@ def main(realHandpad, realNexus, fakeCamera):
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    logging.basicConfig(
-        format="%(asctime)s %(name)s: %(levelname)s %(message)s")
+    logging.basicConfig(format="%(asctime)s %(name)s: %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description="eFinder")
     parser.add_argument(
-        "-fh", "--fakehandpad", help="Use a fake handpad", default=False, action='store_true', required=False
+        "-fh",
+        "--fakehandpad",
+        help="Use a fake handpad",
+        default=False,
+        action="store_true",
+        required=False,
     )
     parser.add_argument(
-        "-fn", "--fakenexus", help="Use a fake nexus", default=False, action='store_true', required=False
+        "-fn",
+        "--fakenexus",
+        help="Use a fake nexus",
+        default=False,
+        action="store_true",
+        required=False,
     )
     parser.add_argument(
-        "-fc", "--fakecamera", help="Use a fake camera", default=False, action='store_true', required=False
+        "-fc",
+        "--fakecamera",
+        help="Use a fake camera",
+        default=False,
+        action="store_true",
+        required=False,
     )
     parser.add_argument(
         "-x", "--verbose", help="Set logging to debug mode", action="store_true"

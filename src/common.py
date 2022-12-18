@@ -7,20 +7,22 @@ from pathlib import Path
 
 version_string = "16_5"
 
-class Common:
 
-    def __init__(self, cwd_path: Path, images_path: Path, pix_scale, version_suffix: str) -> None:
-       self.home_path = cwd_path 
-       self.images_path = images_path
-       self.pix_scale = pix_scale
-       self.ts = load.timescale()
-       self.version = version_string + version_suffix 
+class Common:
+    def __init__(
+        self, cwd_path: Path, images_path: Path, pix_scale, version_suffix: str
+    ) -> None:
+        self.home_path = cwd_path
+        self.images_path = images_path
+        self.pix_scale = pix_scale
+        self.ts = load.timescale()
+        self.version = version_string + version_suffix
 
     def get_version(self):
         return self.version
 
     # returns the RA & Dec (J2000) corresponding to an image x,y pixel
-    def xy2rd(self, x, y): 
+    def xy2rd(self, x, y):
         result = subprocess.run(
             [
                 "wcs-xy2rd",
@@ -38,7 +40,6 @@ class Common:
         line = result.split("RA,Dec")[1]
         ra, dec = re.findall("[-,+]?\d+\.\d+", line)
         return (float(ra), float(dec))
-
 
     # converts an image pixel x,y to a delta x,y in degrees.
     def pixel2dxdy(self, pix_x, pix_y):
@@ -61,7 +62,7 @@ class Common:
         return (pix_x, pix_y, dxstr, dystr)
 
     # creates & returns a 'Skyfield star object' at the set offset and adjusted to Jnow
-    def applyOffset(self, nexus, offset):  
+    def applyOffset(self, nexus, offset):
         x_offset, y_offset, dxstr, dystr = self.dxdy2pixel(offset[0], offset[1])
         ra, dec = self.xy2rd(x_offset, y_offset)
         solved = Star(
@@ -69,11 +70,11 @@ class Common:
         )  # will set as J2000 as no epoch input
         solvedPos_scope = (
             # GUI uses ts.now(), eFinder uses coordinates.get_ts().now()
-            nexus.get_location().at(self.ts.now()).observe(solved)
+            nexus.get_location()
+            .at(self.ts.now())
+            .observe(solved)
         )  # now at Jnow and current location
         return solvedPos_scope
-
-
 
     def deltaCalc(self, nexus_altaz, solved_altaz, scope_alt, delta_az, delta_alt):
         deltaAz = solved_altaz[1] - nexus_altaz[1]
@@ -88,18 +89,20 @@ class Common:
         )  # actually this is delta'x' in arcminutes
         delta_alt = solved_altaz[0] - nexus_altaz[0]
         delta_alt = 60 * (delta_alt)  # in arcminutes
-        return delta_az, delta_alt 
+        return delta_az, delta_alt
 
     def pick_camera(self, camera_type, handpad, images_path) -> CameraInterface:
         camera: CameraInterface = CameraInterface()
-        if camera_type == 'ASI':
+        if "ASI" in camera_type:
             import ASICamera
+
             camera = ASICamera.ASICamera(handpad, images_path)
-        elif camera_type == 'QHY':
+        elif "QHY" in camera_type:
             import QHYCamera
+
             camera = QHYCamera.QHYCamera(handpad)
-        elif camera_type == 'TEST':
+        elif "TEST" in camera_type:
             import CameraDebug
+
             camera = CameraDebug.CameraDebug(images_path)
         return camera
-

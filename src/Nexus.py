@@ -155,12 +155,12 @@ class Nexus:
         self.radec = (
             float(ra[0]) + float(ra[1]) / 60 + float(ra[2]) / 3600
         ), math.copysign(
-            abs(float(dec[0]) + float(dec[1]) / 60 + float(dec[2]) / 3600),
+            abs(abs(float(dec[0])) + float(dec[1]) / 60 + float(dec[2]) / 3600),
             float(dec[0]),
         )
         self.altaz = self.coordinates.conv_altaz(self, *(self.radec))
         self.scope_alt = self.altaz[0] * math.pi / 180
-        self.short = ra[0]+ra[1]+dec[0]+dec[1]
+        self.short = ra[0] + ra[1] + dec[0] + dec[1]
         print(
             "Nexus RA:  ",
             self.coordinates.hh2dms(self.radec[0]),
@@ -181,12 +181,12 @@ class Nexus:
 
     def get_short(self):
         """Returns a summary of RA & Dec for file labelling
-        
+
         Returns:
         short: RADec
         """
         return self.short
-        
+
     def get_location(self):
         """Returns the location on earth of the observer
 
