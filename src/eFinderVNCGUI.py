@@ -79,6 +79,7 @@ global solved_radec
 solved_radec = 0, 0
 pix_scale = 15
 
+
 class EFinderGUI():
     f_g = "red"
     b_g = "black"
