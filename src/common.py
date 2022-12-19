@@ -4,8 +4,18 @@ from CameraInterface import CameraInterface
 from skyfield.api import load, Star, wgs84
 import math
 from pathlib import Path
+from dataclasses import dataclass
 
 version_string = "16_5"
+
+@dataclass
+class CameraSettings:
+    """Class for keeping track of the camera settings"""
+    camera: CameraInterface
+    camera_debug: CameraInterface
+    gain: float
+    exposure: float
+    testimage: str
 
 
 class Common:
@@ -95,14 +105,16 @@ class Common:
         camera: CameraInterface = CameraInterface()
         if "ASI" in camera_type:
             import ASICamera
-
             camera = ASICamera.ASICamera(handpad, images_path)
         elif "QHY" in camera_type:
             import QHYCamera
-
             camera = QHYCamera.QHYCamera(handpad)
-        elif "TEST" in camera_type:
+        elif "TEST" in camera_typefor :
             import CameraDebug
-
             camera = CameraDebug.CameraDebug(images_path)
         return camera
+
+    def read_nexus():
+        nexus.read_altAz(None)
+        nexus_radec = self.nexus.get_radec()
+        nexus_altaz = self.nexus.get_altAz()

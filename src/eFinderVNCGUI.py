@@ -31,7 +31,6 @@ import tkinter as tk
 from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
 import select
 import re
-from skyfield.api import load, Star, wgs84
 from pathlib import Path
 import fitsio
 from fitsio import FITS, FITSHDR
@@ -43,6 +42,7 @@ import logging
 import argparse
 from platesolve import PlateSolve
 from common import Common
+from common import CameraSettings
 import utils
 from gui import EFinderGUI
 
@@ -83,61 +83,19 @@ pix_scale = 15
 
 
 class EFinder():
+    camera_settings: CameraSettings = None
+
     def __init__(self, pix_scale):
         self.pix_scale = pix_scale
 
 
-def readNexus():
-    """Read the AltAz from the Nexus DSC and put the correct numbers on the GUI."""
-    nexus.read_altAz(None)
-    nexus_radec = nexus.get_radec()
-    nexus_altaz = nexus.get_altAz()
-    tk.Label(
-        window,
-        width=10,
-        text=coordinates.hh2dms(nexus_radec[0]),
-        anchor="e",
-        bg=b_g,
-        fg=f_g,
-    ).place(x=225, y=804)
-    tk.Label(
-        window,
-        width=10,
-        anchor="e",
-        text=coordinates.dd2dms(nexus_radec[1]),
-        bg=b_g,
-        fg=f_g,
-    ).place(x=225, y=826)
-    tk.Label(
-        window,
-        width=10,
-        anchor="e",
-        text=coordinates.ddd2dms(nexus_altaz[1]),
-        bg=b_g,
-        fg=f_g,
-    ).place(x=225, y=870)
-    tk.Label(
-        window,
-        width=10,
-        anchor="e",
-        text=coordinates.dd2dms(nexus_altaz[0]),
-        bg=b_g,
-        fg=f_g,
-    ).place(x=225, y=892)
-
-
 # TODO MR reduce globals to zero
-def capture(camera, camera_debug, exposure, gain, polaris, m31):
-    global radec
-    use_camera = camera
+def capture(camera_settings: CameraSettings, radec):
+    use_camera = camera_settings.camera
     extras = {}
-    if polaris.get() == "1":
-        extras["testimage"] = "polaris"
+    if camera_settings.testimage:
+        extras["testimage"] = camera_settings.testimage 
         use_camera = camera_debug
-    elif m31.get() == "1":
-        extras["testimage"] = "m31"
-        use_camera = camera_debug
-    radec = nexus.get_short()
     use_camera.capture(
         int(1000000 * float(exposure.get())
             ), int(float(gain.get())), radec, extras
@@ -174,7 +132,7 @@ def solveImage(is_offset=False):
             logging.info("No Named Star found")
             star_name = "Unknown"
     solvedPos = common.applyOffset(nexus, offset)
-    ra, dec, d = solvedPos.apparent().radec(ts.now())
+    ra, dec, d = solvedPos.apparent().radec(eFinderGUI.ts.now())
     solved_radec = ra.hours, dec.degrees
     solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
     scopeAlt = solved_altaz[0] * math.pi / 180
@@ -414,7 +372,7 @@ def moveScope(dAz, dAlt):
 
 def align():  # sends the Nexus the solved RA & Dec (JNow) as an align or sync point. LX200 protocol.
     global align_count, p, solved_radec
-    # readNexus()
+    common.readNexus()
     capture(camera, camera_debug, eFinderGUI.exposure, gain, polaris, m31)
     solveImage()
     eFinderGUI.readNexusGUI()
@@ -683,7 +641,7 @@ def on_closing():
 
 def box_write(new_line, show_handpad):
     global handpad
-    t = ts.now()
+    t = eFinderGUI.ts.now()
     for i in range(5, 0, -1):
         box_list[i] = box_list[i - 1]
     box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
@@ -774,20 +732,21 @@ def main(realHandpad, realNexus, fakeCamera):
         else NexusDebug(handpad, coordinates)
     )
     platesolve = PlateSolve(pix_scale, images_path)
-    eFinder = EFinder(pix_scale=15)
-    eFinderGUI = EFinderGUI()
     NexStr = nexus.get_nex_str()
     param = dict()
     get_param(cwd_path / "eFinder.config")
     logging.debug(f"{param=}")
 
-    planets = load("de421.bsp")
-    earth = planets["earth"]
-    ts = load.timescale()
-    nexus.read()
+
     camera_type = param["Camera Type"] if not fakeCamera else "TEST"
     camera_debug = common.pick_camera("TEST", handpad, images_path)
     camera = common.pick_camera(camera_type, handpad, images_path)
+
+    camera_settings = CameraSettings(gain = param["Gain"], camera=camera, 
+                                     exposure = param["Exposure"])
+    
+    eFinder = EFinder(pix_scale=15, camera_settings)
+    eFinderGUI = EFinderGUI(nexus, window, param, camera_settings)
 
     logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
     handpad.display(

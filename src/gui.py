@@ -1,19 +1,32 @@
+from skyfield.api import load, Star, wgs84
+import tkinter as tk
+from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
+from PIL import Image, ImageTk, ImageDraw, ImageOps
+from pathlib import Path
+from common import CameraSettings
 
 class EFinderGUI():
     f_g = "red"
     b_g = "black"
-    window = None
-    LST, lbl_LST, lbl_UTC, lbl_date, ts, nexus, sidereal = None, None, None, None, None, None, None
+    LST, lbl_LST, lbl_UTC, lbl_date, nexus, sidereal = None, None, None, None, None, None
     exposure = 1.0
+    # planets and earth not used
+    planets = load("de421.bsp")
+    earth = planets["earth"]
+    ts = load.timescale()
 
-    def __init__(self):
-        pass
+    def __init__(self, nexus, window, param, camera_settings: CameraSettings):
+        self.nexus = nexus
+        self.window = window
+        self.param = param
+        self.camera_settings = camera_settings
+        self.cwd_path: Path = Path.cwd()
 
-    def readNexusGUI(self):
-        """Read the AltAz from the Nexus DSC and put the correct numbers on the GUI."""
-        nexus.read_altAz(None)
-        nexus_radec = nexus.get_radec()
-        nexus_altaz = nexus.get_altAz()
+    def update_nexus_GUI(self):
+        """Put the correct nexus numbers on the GUI."""
+        self.nexus.read_altAz(None)
+        nexus_radec = self.nexus.get_radec()
+        nexus_altaz = self.nexus.get_altAz()
         tk.Label(
             self.window,
             width=10,
@@ -110,8 +123,8 @@ class EFinderGUI():
         # global LST, lbl_LST, lbl_UTC, lbl_date, ts, nexus, window
         b_g = self.b_g
         f_g = self.f_g
-        t = ts.now()
-        self.LST = t.gmst + nexus.get_long() / 15  # as decimal hours
+        t = self.ts.now()
+        self.LST = t.gmst + self.nexus.get_long() / 15  # as decimal hours
         LSTstr = (
             str(int(self.LST))
             + "h "
@@ -120,20 +133,20 @@ class EFinderGUI():
             + str(int((self.LST * 3600) % 60))
             + "s"
         )
-        self.lbl_LST = Label(window, bg=b_g, fg=f_g, text=LSTstr)
+        self.lbl_LST = Label(self.window, bg=b_g, fg=f_g, text=LSTstr)
         self.lbl_LST.place(x=55, y=44)
-        self.lbl_UTC = Label(window, bg=b_g, fg=f_g,
+        self.lbl_UTC = Label(self.window, bg=b_g, fg=f_g,
                              text=t.utc_strftime("%H:%M:%S"))
         self.lbl_UTC.place(x=55, y=22)
-        self.lbl_date = Label(window, bg=b_g, fg=f_g,
+        self.lbl_date = Label(self.window, bg=b_g, fg=f_g,
                               text=t.utc_strftime("%d %b %Y"))
         self.lbl_date.place(x=55, y=0)
 
     # GUI specific
 
     def sidereal(self):
-        t = ts.now()
-        self.LST = t.gmst + nexus.get_long() / 15  # as decimal hours
+        t = self.ts.now()
+        self.LST = t.gmst + self.nexus.get_long() / 15  # as decimal hours
         LSTstr = (
             str(int(LST))
             + "h "
@@ -153,29 +166,29 @@ class EFinderGUI():
     def draw_screen(self, NexStr):
         b_g = self.b_g
         f_g = self.f_g
-        tk.Label(window, text="Date", fg=f_g, bg=b_g).place(x=15, y=0)
-        tk.Label(window, text="UTC", bg=b_g, fg=f_g).place(x=15, y=22)
-        tk.Label(window, text="LST", bg=b_g, fg=f_g).place(x=15, y=44)
-        tk.Label(window, text="Loc:", bg=b_g, fg=f_g).place(x=15, y=66)
+        tk.Label(self.window, text="Date", fg=f_g, bg=b_g).place(x=15, y=0)
+        tk.Label(self.window, text="UTC", bg=b_g, fg=f_g).place(x=15, y=22)
+        tk.Label(self.window, text="LST", bg=b_g, fg=f_g).place(x=15, y=44)
+        tk.Label(self.window, text="Loc:", bg=b_g, fg=f_g).place(x=15, y=66)
         tk.Label(
-            window,
+            self.window,
             width=18,
             anchor="w",
-            text=str(nexus.get_long()) + "\u00b0  " +
-            str(nexus.get_lat()) + "\u00b0",
+            text=str(self.nexus.get_long()) + "\u00b0  " +
+            str(self.nexus.get_lat()) + "\u00b0",
             bg=b_g,
             fg=f_g,
         ).place(x=55, y=66)
-        img = Image.open(cwd_path / "splashscreen.jpeg")
+        img = Image.open(self.cwd_path / "splashscreen.jpeg")
         img = img.resize((1014, 760))
         img = ImageTk.PhotoImage(img)
-        panel = tk.Label(window, highlightbackground="red",
+        panel = tk.Label(self.window, highlightbackground="red",
                          highlightthickness=2, image=img)
         panel.place(x=200, y=5, width=1014, height=760)
 
         self.exposure_str: StringVar = StringVar()
-        self.exposure_str.set(param["Exposure"])
-        exp_frame = Frame(window, bg="black")
+        self.exposure_str.set(self.camera_settings.exposure])
+        exp_frame = Frame(self.window, bg="black")
         exp_frame.place(x=0, y=100)
         tk.Label(exp_frame, text="Exposure", bg=b_g,
                  fg=f_g).pack(padx=1, pady=1)
@@ -194,8 +207,8 @@ class EFinderGUI():
             ).pack(padx=1, pady=1)
 
         gain = StringVar()
-        gain.set(param["Gain"])
-        gain_frame = Frame(window, bg="black")
+        gain.set(self.camera_settings.gain)
+        gain_frame = Frame(self.window, bg="black")
         gain_frame.place(x=80, y=100)
         tk.Label(gain_frame, text="Gain", bg=b_g, fg=f_g).pack(padx=1, pady=1)
         for i in range(len(gainRange)):
@@ -209,10 +222,10 @@ class EFinderGUI():
                 anchor="w",
                 highlightbackground="black",
                 value=float(gainRange[i]),
-                variable=gain,
+                variable=camera_settings.gain,
             ).pack(padx=1, pady=1)
 
-        options_frame = Frame(window, bg="black")
+        options_frame = Frame(self.window, bg="black")
         options_frame.place(x=20, y=270)
         polaris = StringVar()
         polaris.set("0")
@@ -244,7 +257,7 @@ class EFinderGUI():
         self.box_write("ccd is " + camera.get_cam_type(), False)
         self.box_write("Nexus " + NexStr, True)
 
-        but_frame = Frame(window, bg="black")
+        but_frame = Frame(self.window, bg="black")
         but_frame.place(x=25, y=650)
         tk.Button(
             but_frame,
@@ -307,7 +320,7 @@ class EFinderGUI():
             command=move,
         ).pack(padx=1, pady=5)
 
-        off_frame = Frame(window, bg="black")
+        off_frame = Frame(self.window, bg="black")
         off_frame.place(x=10, y=420)
         tk.Button(
             off_frame,
@@ -371,11 +384,11 @@ class EFinderGUI():
         ).pack(padx=1, pady=1)
         d_x, d_y, dxstr, dystr = common.pixel2dxdy(offset[0], offset[1])
 
-        tk.Label(window, text="Offset:", bg=b_g, fg=f_g).place(x=10, y=400)
-        tk.Label(window, text="0,0", bg=b_g,
+        tk.Label(self.window, text="Offset:", bg=b_g, fg=f_g).place(x=10, y=400)
+        tk.Label(self.window, text="0,0", bg=b_g,
                  fg=f_g, width=6).place(x=60, y=400)
 
-        nex_frame = Frame(window, bg="black")
+        nex_frame = Frame(self.window, bg="black")
         nex_frame.place(x=250, y=766)
         tk.Button(
             nex_frame,
@@ -388,10 +401,10 @@ class EFinderGUI():
             command=self.readNexusGUI,
         ).pack(padx=1, pady=1)
 
-        tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=345, y=770)
-        tk.Label(window, text="Solution", bg=b_g, fg=f_g).place(x=435, y=770)
-        tk.Label(window, text="delta x,y", bg=b_g, fg=f_g).place(x=535, y=770)
-        target_frame = Frame(window, bg="black")
+        tk.Label(self.window, text="delta x,y", bg=b_g, fg=f_g).place(x=345, y=770)
+        tk.Label(self.window, text="Solution", bg=b_g, fg=f_g).place(x=435, y=770)
+        tk.Label(self.window, text="delta x,y", bg=b_g, fg=f_g).place(x=535, y=770)
+        target_frame = Frame(self.window, bg="black")
         target_frame.place(x=620, y=766)
         tk.Button(
             target_frame,
@@ -404,7 +417,7 @@ class EFinderGUI():
             command=readTarget,
         ).pack(padx=1, pady=1)
 
-        dis_frame = Frame(window, bg="black")
+        dis_frame = Frame(self.window, bg="black")
         dis_frame.place(x=800, y=765)
         tk.Button(
             dis_frame,
@@ -527,7 +540,7 @@ class EFinderGUI():
             width=5,
         ).pack(padx=10, pady=1)
 
-        ann_frame = Frame(window, bg="black")
+        ann_frame = Frame(self.window, bg="black")
         ann_frame.place(x=950, y=765)
         tk.Button(
             ann_frame,
@@ -626,14 +639,14 @@ class EFinderGUI():
             variable=tycho2,
         ).pack(padx=1, pady=1)
 
-        tk.Label(window, text="RA", bg=b_g, fg=f_g).place(x=200, y=804)
-        tk.Label(window, text="Dec", bg=b_g, fg=f_g).place(x=200, y=826)
-        tk.Label(window, text="Az", bg=b_g, fg=f_g).place(x=200, y=870)
-        tk.Label(window, text="Alt", bg=b_g, fg=f_g).place(x=200, y=892)
+        tk.Label(self.window, text="RA", bg=b_g, fg=f_g).place(x=200, y=804)
+        tk.Label(self.window, text="Dec", bg=b_g, fg=f_g).place(x=200, y=826)
+        tk.Label(self.window, text="Az", bg=b_g, fg=f_g).place(x=200, y=870)
+        tk.Label(self.window, text="Alt", bg=b_g, fg=f_g).place(x=200, y=892)
 
         EP = StringVar()
         EP.set("0")
-        EP_frame = Frame(window, bg="black")
+        EP_frame = Frame(self.window, bg="black")
         EP_frame.place(x=1060, y=770)
         rad13 = Checkbutton(
             EP_frame,
@@ -649,7 +662,7 @@ class EFinderGUI():
         ).pack(padx=1, pady=2)
         global EPlength
         EPlength = StringVar()
-        EPlength.set(float(param["default_eyepiece"]))
+        EPlength.set(float(self.param["default_eyepiece"]))
         for i in range(len(eye_piece)):
             tk.Radiobutton(
                 EP_frame,
@@ -665,16 +678,16 @@ class EFinderGUI():
                 variable=EPlength,
             ).pack(padx=1, pady=0)
         get_offset()
-        window.protocol("WM_DELETE_WINDOW", on_closing)
-        window.mainloop()
+        self.window.protocol("WM_DELETE_WINDOW", on_closing)
+        self.window.mainloop()
 
     def box_write(self, new_line, show_handpad):
         global handpad
-        t = ts.now()
+        t = self.ts.now()
         for i in range(5, 0, -1):
             box_list[i] = box_list[i - 1]
         box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
         for i in range(0, 5, 1):
-            tk.Label(window, text=box_list[i], bg=self.b_g, fg=self.f_g).place(
+            tk.Label(self.window, text=box_list[i], bg=self.b_g, fg=self.f_g).place(
                 x=1050, y=980 - i * 16)
 
