@@ -14,10 +14,10 @@ class EFinderGUI():
     planets = load("de421.bsp")
     earth = planets["earth"]
     ts = load.timescale()
+    window = tk.Tk()
 
-    def __init__(self, nexus, window, param, camera_settings: CameraSettings):
+    def __init__(self, nexus, param, camera_settings: CameraSettings):
         self.nexus = nexus
-        self.window = window
         self.param = param
         self.camera_settings = camera_settings
         self.cwd_path: Path = Path.cwd()
@@ -162,6 +162,54 @@ class EFinderGUI():
 
     def set_window(self, window):
         self.window = window
+
+################# the offset methods:
+
+    def save_offset(self):
+        global param
+        param["d_x"], param["d_y"] = offset
+        save_param()
+        get_offset()
+        eFinderGUI.box_write("offset saved", True)
+
+    def get_offset(self):
+        x_offset_saved, y_offset_saved, dxstr_saved, dystr_saved = common.dxdy2pixel(
+            float(param["d_x"]), float(param["d_y"])
+        )
+        tk.Label(
+            window,
+            text=dxstr_saved + "," + dystr_saved + "          ",
+            width=9,
+            anchor="w",
+            bg=eFinderGUI.b_g,
+            fg=eFinderGUI.f_g,
+        ).place(x=110, y=520)
+
+    def use_saved_offset(self):
+        global offset
+        x_offset_saved, y_offset_saved, dxstr, dystr = common.dxdy2pixel(
+            float(param["d_x"]), float(param["d_y"])
+        )
+        offset = float(param["d_x"]), float(param["d_y"])
+        tk.Label(window, text=dxstr + "," + dystr, bg=b_g, fg=f_g, width=8).place(
+            x=60, y=400
+        )
+
+    def use_new_offset(self):
+        global offset, offset_new
+        offset = offset_new
+        x_offset_new, y_offset_new, dxstr, dystr = common.dxdy2pixel(
+            offset[0], offset[1])
+        tk.Label(window, text=dxstr + "," + dystr, bg=b_g, fg=f_g, width=8).place(
+            x=60, y=400
+        )
+
+    def reset_offset(self):
+        global offset
+        offset = offset_reset
+        eFinderGUI.box_write("offset reset", True)
+        tk.Label(window, text="0,0", bg=b_g, fg="red", width=8).place(x=60, y=400)
+###########################################
 
     def draw_screen(self, NexStr):
         b_g = self.b_g
@@ -332,7 +380,7 @@ class EFinderGUI():
             width=8,
             bg=b_g,
             fg=f_g,
-            command=measure_offset,
+            command=self.measure_offset,
         ).pack(padx=1, pady=1)
         tk.Button(
             off_frame,
@@ -344,7 +392,7 @@ class EFinderGUI():
             bd=0,
             height=1,
             width=8,
-            command=use_new,
+            command=self.use_new_offset,
         ).pack(padx=1, pady=1)
         tk.Button(
             off_frame,
@@ -356,7 +404,7 @@ class EFinderGUI():
             fg=f_g,
             height=1,
             width=8,
-            command=save_offset,
+            command=self.save_offset,
         ).pack(padx=1, pady=1)
         tk.Button(
             off_frame,
@@ -368,7 +416,7 @@ class EFinderGUI():
             fg=f_g,
             height=1,
             width=8,
-            command=use_saved_offset,
+            command=self.use_saved_offset,
         ).pack(padx=1, pady=1)
         tk.Button(
             off_frame,
@@ -380,7 +428,7 @@ class EFinderGUI():
             fg=f_g,
             height=1,
             width=8,
-            command=reset_offset,
+            command=self.reset_offset,
         ).pack(padx=1, pady=1)
         d_x, d_y, dxstr, dystr = common.pixel2dxdy(offset[0], offset[1])
 
@@ -691,3 +739,16 @@ class EFinderGUI():
             tk.Label(self.window, text=box_list[i], bg=self.b_g, fg=self.f_g).place(
                 x=1050, y=980 - i * 16)
 
+    def deltaCalcGUI(self):
+        global deltaAz, deltaAlt, solved_altaz
+        deltaAz, deltaAlt = common.deltaCalc(
+            nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt
+        )
+        deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
+        deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
+        tk.Label(window, width=10, anchor="e", text=deltaAzstr, bg=b_g, fg=f_g).place(
+            x=315, y=870
+        )
+        tk.Label(window, width=10, anchor="e", text=deltaAltstr, bg=b_g, fg=f_g).place(
+            x=315, y=892
+        )

@@ -16,7 +16,6 @@
 # It requires astrometry.net installed
 # It requires Skyfield
 
-import subprocess
 import time
 import os
 import sys
@@ -28,12 +27,9 @@ from NexusDebug import NexusDebug
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 from PIL.Image import Resampling
 import tkinter as tk
-from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
 import select
 import re
 from pathlib import Path
-import fitsio
-from fitsio import FITS, FITSHDR
 import threading
 import Nexus
 import Coordinates
@@ -42,7 +38,7 @@ import logging
 import argparse
 from platesolve import PlateSolve
 from common import Common
-from common import CameraSettings
+from common import CameraSettings, CLIOptions
 import utils
 from gui import EFinderGUI
 
@@ -83,10 +79,13 @@ pix_scale = 15
 
 
 class EFinder():
-    camera_settings: CameraSettings = None
-
-    def __init__(self, pix_scale):
+    def __init__(self, pix_scale, camera_settings, cli_options):
         self.pix_scale = pix_scale
+        self.cli_options = cli_options
+        self.camera_settings = camera_settings
+
+
+eFinder: EFinder
 
 
 # TODO MR reduce globals to zero
@@ -94,7 +93,7 @@ def capture(camera_settings: CameraSettings, radec):
     use_camera = camera_settings.camera
     extras = {}
     if camera_settings.testimage:
-        extras["testimage"] = camera_settings.testimage 
+        extras["testimage"] = camera_settings.testimage
         use_camera = camera_debug
     use_camera.capture(
         int(1000000 * float(exposure.get())
@@ -141,23 +140,6 @@ def solveImage(is_offset=False):
     eFinderGUI.box_write("solved", True)
     deltaCalcGUI()
     readTarget()
-
-
-def solve_image_failed(b_g, f_g, elapsed_time, window):
-    box_write("Solve Failed", True)
-    tk.Label(
-        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-    ).place(x=410, y=804)
-    tk.Label(
-        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-    ).place(x=410, y=826)
-    tk.Label(
-        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-    ).place(x=410, y=870)
-    tk.Label(
-        window, width=10, anchor="e", text="no solution", bg=b_g, fg=f_g
-    ).place(x=410, y=892)
-    tk.Label(window, text=elapsed_time, bg=b_g, fg=f_g).place(x=315, y=936)
 
 
 def image_show():
@@ -320,21 +302,6 @@ def zoom_at(img, x, y, zoom):
     return img.resize((w, h), Image.LANCZOS)
 
 
-def deltaCalcGUI():
-    global deltaAz, deltaAlt, solved_altaz
-    deltaAz, deltaAlt = common.deltaCalc(
-        nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt
-    )
-    deltaAzstr = "{: .1f}".format(float(deltaAz)).ljust(8)[:8]
-    deltaAltstr = "{: .1f}".format(float(deltaAlt)).ljust(8)[:8]
-    tk.Label(window, width=10, anchor="e", text=deltaAzstr, bg=b_g, fg=f_g).place(
-        x=315, y=870
-    )
-    tk.Label(window, width=10, anchor="e", text=deltaAltstr, bg=b_g, fg=f_g).place(
-        x=315, y=892
-    )
-
-
 def moveScope(dAz, dAlt):
     azPulse = abs(dAz / float(param["azSpeed"]))  # seconds
     altPulse = abs(dAlt / float(param["altSpeed"]))
@@ -450,56 +417,6 @@ def measure_offset():
         bg=b_g,
         fg=f_g,
     ).place(x=110, y=450)
-
-
-def use_new():
-    global offset, offset_new
-    offset = offset_new
-    x_offset_new, y_offset_new, dxstr, dystr = common.dxdy2pixel(
-        offset[0], offset[1])
-    tk.Label(window, text=dxstr + "," + dystr, bg=b_g, fg=f_g, width=8).place(
-        x=60, y=400
-    )
-
-
-def save_offset():
-    global param
-    param["d_x"], param["d_y"] = offset
-    save_param()
-    get_offset()
-    eFinderGUI.box_write("offset saved", True)
-
-
-def get_offset():
-    x_offset_saved, y_offset_saved, dxstr_saved, dystr_saved = common.dxdy2pixel(
-        float(param["d_x"]), float(param["d_y"])
-    )
-    tk.Label(
-        window,
-        text=dxstr_saved + "," + dystr_saved + "          ",
-        width=9,
-        anchor="w",
-        bg=eFinderGUI.b_g,
-        fg=eFinderGUI.f_g,
-    ).place(x=110, y=520)
-
-
-def use_saved_offset():
-    global offset
-    x_offset_saved, y_offset_saved, dxstr, dystr = common.dxdy2pixel(
-        float(param["d_x"]), float(param["d_y"])
-    )
-    offset = float(param["d_x"]), float(param["d_y"])
-    tk.Label(window, text=dxstr + "," + dystr, bg=b_g, fg=f_g, width=8).place(
-        x=60, y=400
-    )
-
-
-def reset_offset():
-    global offset
-    offset = offset_reset
-    eFinderGUI.box_write("offset reset", True)
-    tk.Label(window, text="0,0", bg=b_g, fg="red", width=8).place(x=60, y=400)
 
 
 def read_nexus_and_capture():
@@ -717,18 +634,19 @@ def do_button(event):
         )
 
 
-def main(realHandpad, realNexus, fakeCamera):
+def main(cli_options: CLIOptions):
     # main code starts here
-    global nexus, ts, param, window, earth, test, handpad, coordinates, camera, camera_debug, polaris, m31, exposure, panel, zoom, rotate, auto_rotate, manual_rotate, gain, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common, bright, hip, hd, abell, tycho2, ngc, version, eFinderGUI
-    window = tk.Tk()
+    global eFinder
+    global nexus, ts, param, window, earth, test, handpad, coordinates, polaris, m31, panel, zoom, rotate, auto_rotate, manual_rotate, grat, EP, lock, flip, mirror, angle, go_to, pix_scale, platesolve, common, bright, hip, hd, abell, tycho2, ngc, version, eFinderGUI
     common = Common(cwd_path, images_path, pix_scale, "_VNC")
     version = common.get_version()
     logging.info(f"Starting eFinder version {version}...")
-    handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
+    handpad = Display.Handpad(
+        version) if cli_options.real_handpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
     nexus = (
         Nexus.Nexus(handpad, coordinates)
-        if realNexus
+        if cli_options.real_nexus
         else NexusDebug(handpad, coordinates)
     )
     platesolve = PlateSolve(pix_scale, images_path)
@@ -737,16 +655,16 @@ def main(realHandpad, realNexus, fakeCamera):
     get_param(cwd_path / "eFinder.config")
     logging.debug(f"{param=}")
 
-
-    camera_type = param["Camera Type"] if not fakeCamera else "TEST"
+    camera_type = param["Camera Type"] if cli_options.real_camera else "TEST"
     camera_debug = common.pick_camera("TEST", handpad, images_path)
     camera = common.pick_camera(camera_type, handpad, images_path)
 
-    camera_settings = CameraSettings(gain = param["Gain"], camera=camera, 
-                                     exposure = param["Exposure"])
-    
-    eFinder = EFinder(pix_scale=15, camera_settings)
-    eFinderGUI = EFinderGUI(nexus, window, param, camera_settings)
+    camera_settings = CameraSettings(camera, camera_debug, param["Gain"],
+                                     param["Exposure"], "")
+
+    eFinder = EFinder(pix_scale=15, camera_settings=camera_settings,
+                      cli_options=cli_options)
+    eFinderGUI = EFinderGUI(nexus, param, camera_settings)
 
     logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
     handpad.display(
@@ -805,6 +723,14 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
+        "-g",
+        "--hasgui",
+        help="Show the GUI",
+        default=False,
+        action="store_true",
+        required=False,
+    )
+    parser.add_argument(
         "-x", "--verbose", help="Set logging to debug mode", action="store_true"
     )
     parser.add_argument(
@@ -821,5 +747,7 @@ if __name__ == "__main__":
         fh = logging.FileHandler(filehandler)
         fh.setLevel(logger.level)
         logger.addHandler(fh)
-         
-    main(not args.fakehandpad, not args.fakenexus, args.fakecamera)
+
+    cli_options = CLIOptions(
+        not args.fakehandpad, not args.fakecamera, not args.fakenexus, args.hasgui)
+    main(cli_options)

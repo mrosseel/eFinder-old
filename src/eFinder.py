@@ -38,9 +38,9 @@ import argparse
 from HandpadDebug import HandpadDebug
 from NexusDebug import NexusDebug
 
-cwd_path: Path = Path.cwd() 
+cwd_path: Path = Path.cwd()
 images_path: Path = Path("/dev/shm/images")
-utils.create_path(images_path) # create dir if it doesn't yet exist
+utils.create_path(images_path)  # create dir if it doesn't yet exist
 # os.system('pkill -9 -f eFinder.py') # stops the autostart eFinder program running
 x = y = 0  # x, y  define what page the display is showing
 deltaAz = deltaAlt = 0
@@ -53,8 +53,10 @@ solve = False
 sync_count = 0
 pix_scale = 15
 platesolve = PlateSolve(pix_scale, images_path)
-common = Common(cwd_path=cwd_path, images_path=images_path, pix_scale=pix_scale, version_suffix="")
+common = Common(cwd_path=cwd_path, images_path=images_path,
+                pix_scale=pix_scale, version_suffix="")
 version = common.get_version()
+
 
 def imgDisplay():  # displays the captured image on the Pi desktop.
     for proc in psutil.process_iter():
@@ -97,7 +99,8 @@ def solveImage():
 
 def deltaCalc():
     global deltaAz, deltaAlt, solved_altaz, scopeAlt, elapsed_time
-    deltaAz, deltaAlt = common.deltaCalc(nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
+    deltaAz, deltaAlt = common.deltaCalc(
+        nexus.get_altAz(), solved_altaz, nexus.get_scope_alt(), deltaAz, deltaAlt)
     deltaXstr = "{: .2f}".format(float(deltaAz))
     deltaYstr = "{: .2f}".format(float(deltaAlt))
     arr[0, 3][0] = "Delta: x= " + deltaXstr
@@ -207,7 +210,8 @@ def flip():
 
 def update_summary():
     global param
-    arr[1, 0][0] = "Ex:" + str(param["Exposure"]) + "  Gn:" + str(param["Gain"])
+    arr[1, 0][0] = "Ex:" + str(param["Exposure"]) + \
+        "  Gn:" + str(param["Gain"])
     arr[1, 0][1] = "Test mode:" + str(param["Test mode"])
     save_param()
 
@@ -317,7 +321,8 @@ def main(realHandpad, realNexus, fakeCamera):
     global param, handpad, coordinates, nexus
     handpad = Display.Handpad(version) if realHandpad else HandpadDebug()
     coordinates = Coordinates.Coordinates()
-    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(handpad, coordinates)
+    nexus = Nexus.Nexus(handpad, coordinates) if realNexus else NexusDebug(
+        handpad, coordinates)
     nexus.read()
     param = dict()
     get_param()
@@ -406,7 +411,8 @@ def main(realHandpad, realNexus, fakeCamera):
         "reset_offset()",
         "",
     ]
-    summary = ["", "", "", "up_down(-1)", "", "", "left_right(1)", "go_solve()", ""]
+    summary = ["", "", "", "up_down(-1)", "",
+               "", "left_right(1)", "go_solve()", ""]
     exp = [
         "Exposure",
         param["Exposure"],
@@ -459,14 +465,14 @@ def main(realHandpad, realNexus, fakeCamera):
         ]
     )
     update_summary()
-    deg_x, deg_y, dxstr, dystr = common.dxdy2pixel(float(param["d_x"]), float(param["d_y"]))
+    deg_x, deg_y, dxstr, dystr = common.dxdy2pixel(
+        float(param["d_x"]), float(param["d_y"]))
     offset_str = dxstr + "," + dystr
     new_arr = nexus.read_altAz(arr)
     arr = new_arr
     if nexus.is_aligned() == True:
         arr[0, 4][1] = "Nexus is aligned"
         arr[0, 4][0] = "'Select' syncs"
-
 
     camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
     camera_debug = common.pick_camera('TEST', handpad, images_path)
@@ -496,6 +502,7 @@ def main(realHandpad, realNexus, fakeCamera):
         button = ""
         time.sleep(0.1)
 
+
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
@@ -520,4 +527,3 @@ if __name__ == "__main__":
         logger.setLevel(logging.DEBUG)
 
     main(not args.fakehandpad, not args.fakenexus, args.fakecamera)
-

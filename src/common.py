@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 version_string = "16_5"
 
+
 @dataclass
 class CameraSettings:
     """Class for keeping track of the camera settings"""
@@ -16,6 +17,15 @@ class CameraSettings:
     gain: float
     exposure: float
     testimage: str
+
+
+@dataclass
+class CLIOptions:
+    """Class for keeping track of the command line options"""
+    real_handpad: bool
+    real_camera: bool
+    real_nexus: bool
+    has_gui: bool
 
 
 class Common:
