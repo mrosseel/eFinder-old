@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import Label, Radiobutton, StringVar, Checkbutton, Button, Frame
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 from pathlib import Path
-from common import CameraSettings
+from common import CameraSettings, CLIOptions
 
 class EFinderGUI():
     f_g = "red"
@@ -15,12 +15,26 @@ class EFinderGUI():
     earth = planets["earth"]
     ts = load.timescale()
     window = tk.Tk()
+    box_list = ["", "", "", "", "", ""]
 
-    def __init__(self, nexus, param, camera_settings: CameraSettings):
+    def __init__(self, nexus, param, camera_settings: CameraSettings, cli_options: CLIOptions):
         self.nexus = nexus
         self.param = param
         self.camera_settings = camera_settings
+        self.cli_options = cli_options
         self.cwd_path: Path = Path.cwd()
+
+    def start_loop(self):
+        # main program loop, using tkinter GUI
+        window.title("ScopeDog eFinder v" + version)
+        window.geometry("1300x1000+100+10")
+        window.configure(bg="black")
+        window.bind("<<OLED_Button>>", do_button)
+        eFinderGUI.setup_sidereal()
+
+        sid = threading.Thread(target=eFinderGUI.sidereal)
+        sid.daemon = True
+        sid.start()
 
     def update_nexus_GUI(self):
         """Put the correct nexus numbers on the GUI."""
@@ -160,9 +174,6 @@ class EFinderGUI():
         self.lbl_date.config(text=t.utc_strftime("%d %b %Y"))
         self.lbl_LST.after(1000, self.sidereal)
 
-    def set_window(self, window):
-        self.window = window
-
 ################# the offset methods:
 
     def save_offset(self):
@@ -235,11 +246,12 @@ class EFinderGUI():
         panel.place(x=200, y=5, width=1014, height=760)
 
         self.exposure_str: StringVar = StringVar()
-        self.exposure_str.set(self.camera_settings.exposure])
+        self.exposure_str.set(self.camera_settings.exposure)
         exp_frame = Frame(self.window, bg="black")
         exp_frame.place(x=0, y=100)
         tk.Label(exp_frame, text="Exposure", bg=b_g,
                  fg=f_g).pack(padx=1, pady=1)
+        expRange = self.cli_options.exp_range
         for i in range(len(expRange)):
             tk.Radiobutton(
                 exp_frame,
@@ -259,6 +271,7 @@ class EFinderGUI():
         gain_frame = Frame(self.window, bg="black")
         gain_frame.place(x=80, y=100)
         tk.Label(gain_frame, text="Gain", bg=b_g, fg=f_g).pack(padx=1, pady=1)
+        gainRange = self.cli_options.gain_range
         for i in range(len(gainRange)):
             tk.Radiobutton(
                 gain_frame,
@@ -270,7 +283,7 @@ class EFinderGUI():
                 anchor="w",
                 highlightbackground="black",
                 value=float(gainRange[i]),
-                variable=camera_settings.gain,
+                variable=self.camera_settings.gain,
             ).pack(padx=1, pady=1)
 
         options_frame = Frame(self.window, bg="black")
@@ -302,7 +315,7 @@ class EFinderGUI():
             variable=m31,
         ).pack(padx=1, pady=1)
 
-        self.box_write("ccd is " + camera.get_cam_type(), False)
+        self.box_write("ccd is " + self.camera_settings.camera.get_cam_type(), False)
         self.box_write("Nexus " + NexStr, True)
 
         but_frame = Frame(self.window, bg="black")
@@ -733,10 +746,10 @@ class EFinderGUI():
         global handpad
         t = self.ts.now()
         for i in range(5, 0, -1):
-            box_list[i] = box_list[i - 1]
-        box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
+            self.box_list[i] = self.box_list[i - 1]
+        self.box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
         for i in range(0, 5, 1):
-            tk.Label(self.window, text=box_list[i], bg=self.b_g, fg=self.f_g).place(
+            tk.Label(self.window, text=self.box_list[i], bg=self.b_g, fg=self.f_g).place(
                 x=1050, y=980 - i * 16)
 
     def deltaCalcGUI(self):

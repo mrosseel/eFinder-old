@@ -68,7 +68,6 @@ report = {
     "3": "3-star aligned   ",
 }
 solved = False
-box_list = ["", "", "", "", "", ""]
 eye_piece = []
 radec = "no_radec"
 f_g = "red"
@@ -76,6 +75,7 @@ b_g = "black"
 global solved_radec
 solved_radec = 0, 0
 pix_scale = 15
+box_list = ["", "", "", "", "", ""]
 
 
 class EFinder():
@@ -556,16 +556,6 @@ def on_closing():
     sys.exit()
 
 
-def box_write(new_line, show_handpad):
-    global handpad
-    t = eFinderGUI.ts.now()
-    for i in range(5, 0, -1):
-        box_list[i] = box_list[i - 1]
-    box_list[0] = (t.utc_strftime("%H:%M:%S ") + new_line).ljust(36)[:35]
-    for i in range(0, 5, 1):
-        tk.Label(window, text=box_list[i], bg=b_g, fg=f_g).place(
-            x=1050, y=980 - i * 16)
-
 
 def reader():
     global button
@@ -576,8 +566,8 @@ def reader():
         time.sleep(0.1)
 
 
-def get_param(location=Path(cwd_path, "eFinder.config")):
-    global eye_piece, param, expRange, gainRange
+def get_param(cli_options: CLIOptions, location=Path(cwd_path, "eFinder.config")):
+    eye_piece, param, expRange, gainRange = [], dict(), None, None
     logging.debug(f"Loading params from {location}")
     if os.path.exists(location) == True:
         with open(location) as h:
@@ -589,8 +579,11 @@ def get_param(location=Path(cwd_path, "eFinder.config")):
                     eye_piece.append((label, float(fl), float(afov)))
                 elif line[0].startswith("Exp_range"):
                     expRange = line[1].split(",")
+                    cli_options.exp_range = expRange
                 elif line[0].startswith("Gain_range"):
                     gainRange = line[1].split(",")
+                    cli_options.gain_range = gainRange
+    return eye_piece, param, expRange, gainRange
 
 
 def save_param():
@@ -651,8 +644,7 @@ def main(cli_options: CLIOptions):
     )
     platesolve = PlateSolve(pix_scale, images_path)
     NexStr = nexus.get_nex_str()
-    param = dict()
-    get_param(cwd_path / "eFinder.config")
+    eye_piece, param, expRange, gainRange = get_param(cli_options, cwd_path / "eFinder.config")
     logging.debug(f"{param=}")
 
     camera_type = param["Camera Type"] if cli_options.real_camera else "TEST"
@@ -661,10 +653,14 @@ def main(cli_options: CLIOptions):
 
     camera_settings = CameraSettings(camera, camera_debug, param["Gain"],
                                      param["Exposure"], "")
-
+    print(dir(cli_options))
+    cli_options.exp_range = expRange 
+    cli_options.gain_range = gainRange 
     eFinder = EFinder(pix_scale=15, camera_settings=camera_settings,
                       cli_options=cli_options)
-    eFinderGUI = EFinderGUI(nexus, param, camera_settings)
+    eFinderGUI = EFinderGUI(nexus, param, camera_settings, cli_options)
+    # TODO should be deleted once GUI has been properly split off 
+    window = eFinderGUI.window
 
     logging.debug(f"The chosen camera is {camera} with {dir(camera)=}")
     handpad.display(
@@ -672,18 +668,10 @@ def main(cli_options: CLIOptions):
         "Select: Solves",
         "Up:Align Dn:GoTo",
     )
-    # main program loop, using tkinter GUI
-    window.title("ScopeDog eFinder v" + version)
-    window.geometry("1300x1000+100+10")
-    window.configure(bg="black")
-    window.bind("<<OLED_Button>>", do_button)
-    eFinderGUI.set_window(window)
-    eFinderGUI.setup_sidereal()
 
-    sid = threading.Thread(target=eFinderGUI.sidereal)
-    sid.daemon = True
-    sid.start()
 
+    if cli_options.has_gui:
+        eFinderGUI.start_loop()
     button = ""
 
     scan = threading.Thread(target=reader)
@@ -749,5 +737,5 @@ if __name__ == "__main__":
         logger.addHandler(fh)
 
     cli_options = CLIOptions(
-        not args.fakehandpad, not args.fakecamera, not args.fakenexus, args.hasgui)
+        not args.fakehandpad, not args.fakecamera, not args.fakenexus, args.hasgui, [], [])
     main(cli_options)

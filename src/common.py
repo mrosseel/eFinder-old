@@ -5,6 +5,7 @@ from skyfield.api import load, Star, wgs84
 import math
 from pathlib import Path
 from dataclasses import dataclass
+from typing import List
 
 version_string = "16_5"
 
@@ -26,6 +27,8 @@ class CLIOptions:
     real_camera: bool
     real_nexus: bool
     has_gui: bool
+    exp_range: List
+    gain_range: List
 
 
 class Common:
@@ -119,7 +122,7 @@ class Common:
         elif "QHY" in camera_type:
             import QHYCamera
             camera = QHYCamera.QHYCamera(handpad)
-        elif "TEST" in camera_typefor :
+        elif "TEST" in camera_type:
             import CameraDebug
             camera = CameraDebug.CameraDebug(images_path)
         return camera
