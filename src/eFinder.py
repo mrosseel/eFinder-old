@@ -26,7 +26,7 @@ import argparse
 from pathlib import Path
 import fitsio
 from Nexus import Nexus
-import Coordinates
+from Coordinates import Coordinates
 from platesolve import PlateSolve
 from common import Common
 from Display import Display, PrintOutput, SerialOutput
@@ -148,6 +148,7 @@ class EFinder():
     def solveImage(self, offset_flag=False):
         # global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset, solved_radec, solved_altaz
         output = self.handpad.display
+        nexus = self.astro_data.nexus
         output.display("Started solving", "", "")
         has_solved, has_star, star_name, _, elapsed_time = self.platesolve.solve_image(
             offset_flag)
@@ -162,17 +163,16 @@ class EFinder():
             self.offset_data.offset_star_name = star_name
         solvedPos = self.common.applyOffset(self.astro_data.nexus,
                                             self.offset_data.offset)
-        ra, dec, d = solvedPos.apparent().radec(coordinates.get_ts().now())
+        ra, dec, d = solvedPos.apparent().radec(self.coordinates.get_ts().now())
         solved_radec = ra.hours, dec.degrees
-        solved_altaz = coordinates.conv_altaz(
-            self.astro_data.nexus, *(solved_radec))
+        solved_altaz = self.coordinates.conv_altaz(nexus.long, nexus.lat, *(solved_radec))
         self.astro_data.solved_radec = solved_radec
         self.astro_data.solved_altaz = solved_altaz
-        self.astro_data.nexus.set_scope_alt(solved_altaz[0] * math.pi / 180.0)
+        nexus.set_scope_alt(solved_altaz[0] * math.pi / 180.0)
         self.handpad.set_lines(self.handpad.sol_pos,
                                "Sol: RA " +
-                               coordinates.hh2dms(solved_radec[0]),
-                               "   Dec " + coordinates.dd2dms(solved_radec[1]),
+                               self.coordinates.hh2dms(solved_radec[0]),
+                               "   Dec " + self.coordinates.dd2dms(solved_radec[1]),
                                "time: " + str(elapsed_time)[0:4] + " s"
                                )
         self.deltaCalc(elapsed_time)
@@ -313,7 +313,7 @@ def main(cli_data: CLIData):
     output = Display(SerialOutput()) if cli_data.real_handpad else Display(
         PrintOutput())
     handpad = HandPad(output, version_string, param)
-    coordinates = Coordinates.Coordinates()
+    coordinates = Coordinates()
     nexus: Nexus = Nexus(output, coordinates) if cli_data.real_nexus else NexusDebug(
         output, coordinates)
     nexus.read()
@@ -416,7 +416,7 @@ if __name__ == "__main__":
 
     if args.log:
         datenow = datetime.now()
-        filehandler = f"efinder-{datenow:%Y%M%d-%H_%M_%S}.log"
+        filehandler = f"efinder-{datenow:%Y%m%d-%H_%M_%S}.log"
         fh = logging.FileHandler(filehandler)
         fh.setLevel(logger.level)
         logger.addHandler(fh)
