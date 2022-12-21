@@ -165,14 +165,16 @@ class EFinder():
                                             self.offset_data.offset)
         ra, dec, d = solvedPos.apparent().radec(self.coordinates.get_ts().now())
         solved_radec = ra.hours, dec.degrees
-        solved_altaz = self.coordinates.conv_altaz(nexus.long, nexus.lat, *(solved_radec))
+        solved_altaz = self.coordinates.conv_altaz(
+            nexus.long, nexus.lat, *(solved_radec))
         self.astro_data.solved_radec = solved_radec
         self.astro_data.solved_altaz = solved_altaz
         nexus.set_scope_alt(solved_altaz[0] * math.pi / 180.0)
         self.handpad.set_lines(self.handpad.sol_pos,
                                "Sol: RA " +
                                self.coordinates.hh2dms(solved_radec[0]),
-                               "   Dec " + self.coordinates.dd2dms(solved_radec[1]),
+                               "   Dec " +
+                               self.coordinates.dd2dms(solved_radec[1]),
                                "time: " + str(elapsed_time)[0:4] + " s"
                                )
         self.deltaCalc(elapsed_time)
@@ -292,9 +294,7 @@ class EFinder():
 
     def reader(self):
         while True:
-            logging.debug(f"here, {type(self.handpad.display)}")
             button = self.handpad.display.get_button_press()
-            logging.debug(f"here2, {button}")
             if button:
                 nexus_tuple = self.astro_data.nexus.get_nexus_link(), str(
                     self.astro_data.nexus.is_aligned())
@@ -349,7 +349,6 @@ def main(cli_data: CLIData):
 
     eFinder = EFinder(handpad, common, coordinates, camera_data, cli_data,
                       astro_data, offset_data, param)
-
 
     while True:  # next loop looks for button press and sets display option x,y
         time.sleep(0.1)
