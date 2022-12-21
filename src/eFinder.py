@@ -102,9 +102,9 @@ class EFinder():
             output.display(cmd.line1, "Invalid position", cmd.line3)
             return
         reply = nexus.get(":CM#")
-        logging.info("reply: ", reply)
+        logging.info(f"reply: {reply}")
         p = nexus.get(":GW#")
-        logging.info("Align status reply ", p)
+        logging.info(f"Align status reply: {p}")
         self.astro_data.align_count += 1
         if p != "AT2":
             output.display(
@@ -248,7 +248,7 @@ class EFinder():
             logging.info("no GoTo target")
             return
         goto_dec = nexus.get(":Gd#")
-        logging.info("Target goto RA & Dec", goto_ra, goto_dec)
+        logging.info(f"Target goto RA & Dec {goto_ra} {goto_dec}")
         self.align(nexus)
         if not self.astro_data.solved:
             output.display("problem", "solving", "")
