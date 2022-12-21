@@ -16,8 +16,8 @@ class ASICamera(CameraInterface):
     def __init__(
         self,
         handpad: Display,
-        images_path=Path("/dev/shm/images"),
-        home_path=Path.cwd(),
+        images_path: Path,
+        home_path: Path = Path.cwd(),
     ) -> None:
         """Initializes the ASI camera
 

@@ -3,7 +3,7 @@ from typing import Tuple
 from skyfield.api import load
 from skyfield.timelib import Timescale
 from skyfield.vectorlib import VectorSum
-import Nexus
+from Nexus import Nexus
 
 
 class Coordinates:

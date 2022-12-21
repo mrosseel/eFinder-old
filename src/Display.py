@@ -1,42 +1,13 @@
 import serial
 import sys
 
-class Handpad:
-    """All methods to work with the handpad"""
 
-    def __init__(self, version: str) -> None:
-        """Initialize the Handpad class,
+class FakeBox():
+    def readline(self):
+        return ""
 
-        Parameters:
-        version (str): The version of the eFinder software
-        """
-        self.version = version
-        try:
-            self.box = serial.Serial(
-                "/dev/ttyACM0",
-                baudrate=115200,
-                stopbits=serial.STOPBITS_ONE,
-                bytesize=serial.EIGHTBITS,
-                writeTimeout=0,
-                timeout=0,
-                rtscts=False,
-                dsrdtr=False,
-            )
-            self.box.write(b"0:ScopeDog eFinder\n")
-            self.box.write(b"1:eFinder found   \n")
-            if "VNC" in version:
-                self.box.write(b"2:VNCGUI running  \n")
-            else:
-                self.box.write(b"2:                \n")
 
-            self.USB_module = True
-        except Exception as ex:
-            print("ERROR: no handpad display box found")
-            sys.exit()
-
-        self.display("ScopeDog", "eFinder v" + self.version, "")
-        print("  USB:", self.USB_module)
-
+class Output():
     def display(self, line0: str, line1: str, line2: str) -> None:
         """Display the three lines on the display
 
@@ -45,20 +16,80 @@ class Handpad:
         line1 (str): The second line to display
         line2 (str): The third line to display.  This line is not displayed on the LCD module.
         """
-        self.box.write(bytes(("0:" + line0 + "\n").encode("UTF-8")))
-        self.box.write(bytes(("1:" + line1 + "\n").encode("UTF-8")))
-        self.box.write(bytes(("2:" + line2 + "\n").encode("UTF-8")))
+        pass
 
-    def get_box(self) -> serial.Serial:
+    def get_box(self):
         """Returns the box variable
 
         Returns:
         serial.Serial: The box variable"""
-        return self.box
+        pass
 
-    def is_USB_module(self) -> bool:
-        """Return true if the handbox is an OLED
+
+class SerialOutput(Output):
+    box: serial.Serial
+
+    def __init__(self, port="/dev/ttyACM0", baudrate=115200) -> None:
+        try:
+            self.box = serial.Serial(
+                port,
+                baudrate,
+                stopbits=serial.STOPBITS_ONE,
+                bytesize=serial.EIGHTBITS,
+                writeTimeout=0,
+                timeout=0,
+                rtscts=False,
+                dsrdtr=False,
+            )
+        except Exception as ex:
+            print("ERROR: no handpad display box found")
+            sys.exit()
+
+    def display(self, line0: str, line1: str, line2: str) -> None:
+        self.box.write(bytes(("0:" + line0 + "\n").encode("UTF-8")))
+        self.box.write(bytes(("1:" + line1 + "\n").encode("UTF-8")))
+        self.box.write(bytes(("2:" + line2 + "\n").encode("UTF-8")))
+
+
+class PrintOutput:
+    nr_chars = 20
+
+    def __init__(self) -> None:
+        self.header, header_dashes = self._create_headings(self.nr_chars, 'Handpad start')
+        self.footer, _ = self._create_headings(self.nr_chars, 'Handpad stop', header_dashes)
+
+    def _create_headings(self, nr_chars, text, header_dashes = None):
+        dashes = int((nr_chars-len(text))/2) if header_dashes is None else header_dashes
+        return f"{dashes*'-'}{text}{(nr_chars-dashes-len(text))*'-'}\n", dashes
+
+    def display(self, line0: str, line1: str, line2: str) -> None:
+        # no logging here because multiline logging is ugly 
+        print(f"{self.header}{line0}\n{line1}\n{line2}\n{self.footer}")
+
+    def get_box(self):
+        return FakeBox()
+
+
+class Display(Output):
+    """All methods to work with the handpad"""
+    output: Output
+
+    def __init__(self, version: str, output: Output) -> None:
+        """Initialize the Handpad class,
+
+        Parameters:
+        version (str): The version of the eFinder software
+        """
+        self.version = version
+        self.output = output if output is not None else SerialOutput()
+        self.display("eFinder", self.version, "")
+
+    def display(self, line0: str, line1: str, line2: str) -> None:
+        self.output.display(line0, line1, line2)
+
+    def get_box(self):
+        """Returns the box variable
 
         Returns:
-        bool: True is the handbox is an OLED"""
-        return self.USB_module
+        serial.Serial: The box variable"""
+        return None

@@ -5,41 +5,67 @@ from skyfield.api import load, Star, wgs84
 import math
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List
-
-version_string = "16_5"
+from typing import List, Tuple
+from Nexus import Nexus
 
 
 @dataclass
-class CameraSettings:
+class CameraData:
     """Class for keeping track of the camera settings"""
     camera: CameraInterface
     camera_debug: CameraInterface
     gain: float
     exposure: float
+    pix_scale: float
     testimage: str
 
 
 @dataclass
-class CLIOptions:
+class CLIData:
     """Class for keeping track of the command line options"""
     real_handpad: bool
     real_camera: bool
     real_nexus: bool
+    images_path: Path
     has_gui: bool
     exp_range: List
     gain_range: List
 
 
+@dataclass
+class AstroData:
+    """Class for keeping track of all astronomically related data"""
+    nexus: Nexus
+    deltaAz: float = 0
+    deltaAlt: float = 0
+    scope_x: float = 0
+    scope_y: float = 0
+    align_count: int = 0
+    sync_count: int = 0
+    solved: bool = False
+    solved_radec: Tuple[float, float] = 0, 0
+    solved_altaz: Tuple[float, float] = 0, 0
+
+
+@dataclass
+class OffsetData:
+    """Class for keeping track of offset values"""
+    offset_star_name: str = ""
+    offset: Tuple[float, float] = (0.0, 0.0)
+    offset_new: Tuple[float, float] = (0.0, 0.0)
+    offset_saved: Tuple[float, float] = (0.0, 0.0)
+    offset_reset: Tuple[float, float] = (0.0, 0.0)
+    offset_str: str = "0,0"
+
+
 class Common:
-    def __init__(
-        self, cwd_path: Path, images_path: Path, pix_scale, version_suffix: str
-    ) -> None:
+    def __init__(self, cwd_path: Path, images_path: Path, pix_scale,
+                 version: str, version_suffix: str):
         self.home_path = cwd_path
         self.images_path = images_path
         self.pix_scale = pix_scale
         self.ts = load.timescale()
-        self.version = version_string + version_suffix
+        self.version = version + version_suffix
 
     def get_version(self):
         return self.version
@@ -86,7 +112,8 @@ class Common:
 
     # creates & returns a 'Skyfield star object' at the set offset and adjusted to Jnow
     def applyOffset(self, nexus, offset):
-        x_offset, y_offset, dxstr, dystr = self.dxdy2pixel(offset[0], offset[1])
+        x_offset, y_offset, dxstr, dystr = self.dxdy2pixel(
+            offset[0], offset[1])
         ra, dec = self.xy2rd(x_offset, y_offset)
         solved = Star(
             ra_hours=float(ra) / 15, dec_degrees=float(dec)
@@ -121,13 +148,15 @@ class Common:
             camera = ASICamera.ASICamera(handpad, images_path)
         elif "QHY" in camera_type:
             import QHYCamera
-            camera = QHYCamera.QHYCamera(handpad)
+            camera = QHYCamera.QHYCamera(handpad, images_path)
         elif "TEST" in camera_type:
             import CameraDebug
-            camera = CameraDebug.CameraDebug(images_path)
+            camera = CameraDebug.CameraDebug(images_path, images_path)
         return camera
 
     def read_nexus():
         nexus.read_altAz(None)
+        nexus_radec = self.nexus.get_radec()
+        nexus_altaz = self.nexus.get_altAz()
         nexus_radec = self.nexus.get_radec()
         nexus_altaz = self.nexus.get_altAz()

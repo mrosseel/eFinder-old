@@ -52,14 +52,13 @@ class NexusDebug(NexusInterface):
         """Establishes that Nexus DSC is talking to us and get observer location and time data"""
         self.location = self.coordinates.get_earth() + wgs84.latlon(self.lat, self.long)
 
-    def read_altAz(self, arr):
+    def read_altAz(self):
         """Read the RA and declination from the Nexus DSC and convert them to altitude and azimuth
 
         Parameters:
-        arr (np.array): The arr variable to show on the handpad
 
         Returns:
-        np.array: The updated arr variable to show on the handpad
+        ra, dec and is_aligned
         """
 
     def get_short(self):

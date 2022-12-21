@@ -5,6 +5,7 @@ from PIL import Image, ImageTk, ImageDraw, ImageOps
 from pathlib import Path
 from common import CameraSettings, CLIOptions
 
+
 class EFinderGUI():
     f_g = "red"
     b_g = "black"

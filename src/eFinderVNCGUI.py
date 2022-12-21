@@ -38,7 +38,7 @@ import logging
 import argparse
 from platesolve import PlateSolve
 from common import Common
-from common import CameraSettings, CLIOptions
+from common import CameraData, CLIData, AstroData, OffsetData
 import utils
 from gui import EFinderGUI
 
@@ -47,15 +47,8 @@ os.system("pkill -9 -f eFinder.py")
 
 cwd_path: Path = Path.cwd()
 images_path: Path = Path("/dev/shm/images")
-utils.create_path(images_path)  # create dir if it doesn't yet exist
 
-deltaAz = deltaAlt = 0
-scope_x = scope_y = 0
 d_x_str = d_y_str = "0"
-image_height = 960
-image_width = 1280
-offset_new = offset_saved = offset = offset_reset = (0, 0)
-align_count = 0
 report = {
     "N": "Not tracking",
     "T": "Tracking",
@@ -67,22 +60,65 @@ report = {
     "2": "2-star aligned   ",
     "3": "3-star aligned   ",
 }
-solved = False
 eye_piece = []
-radec = "no_radec"
-f_g = "red"
-b_g = "black"
-global solved_radec
-solved_radec = 0, 0
 pix_scale = 15
-box_list = ["", "", "", "", "", ""]
 
 
 class EFinder():
-    def __init__(self, pix_scale, camera_settings, cli_options):
-        self.pix_scale = pix_scale
-        self.cli_options = cli_options
-        self.camera_settings = camera_settings
+    def __init__(self, camera_data: CameraData, cli_data: CLIData,
+                 astro_data: AstroData, offset_data: OffsetData):
+        self.camera_data = camera_data
+        self.cli_data = cli_data
+        self.astro_data = astro_data
+        self.offset_data = offset_data
+
+
+    def align(self):
+        global align_count, solve, sync_count, param, offset_flag, arr
+        new_arr = nexus.read_altAz(arr)
+        arr = new_arr
+        self.capture()
+        self.imgDisplay()
+        solveImage()
+        if solve == False:
+            handpad.display(arr[x, y][0], "Solved Failed", arr[x, y][2])
+            return
+        align_ra = ":Sr" + coordinates.dd2dms((solved_radec)[0]) + "#"
+        align_dec = ":Sd" + coordinates.dd2aligndms((solved_radec)[1]) + "#"
+        valid = nexus.get(align_ra)
+        print(align_ra)
+        if valid == "0":
+            print("invalid position")
+            handpad.display(arr[x, y][0], "Invalid position", arr[x, y][2])
+            return
+        valid = nexus.get(align_dec)
+        print(align_dec)
+        if valid == "0":
+            print("invalid position")
+            handpad.display(arr[x, y][0], "Invalid position", arr[x, y][2])
+            return
+        reply = nexus.get(":CM#")
+        print("reply: ", reply)
+        p = nexus.get(":GW#")
+        print("Align status reply ", p)
+        align_count += 1
+        if p != "AT2":
+            handpad.display(
+                "'select' aligns",
+                "align count: " + str(align_count),
+                "Nexus reply: " + p[0:3],
+            )
+        else:
+            if p == "AT2":
+                sync_count += 1
+                handpad.display(
+                    "'select' syncs",
+                    "Sync count " + str(align_count),
+                    "Nexus reply " + p[0:3],
+                )
+                nexus.set_aligned(True)
+        return
+
 
 
 eFinder: EFinder
@@ -556,7 +592,6 @@ def on_closing():
     sys.exit()
 
 
-
 def reader():
     global button
     while True:
@@ -644,7 +679,8 @@ def main(cli_options: CLIOptions):
     )
     platesolve = PlateSolve(pix_scale, images_path)
     NexStr = nexus.get_nex_str()
-    eye_piece, param, expRange, gainRange = get_param(cli_options, cwd_path / "eFinder.config")
+    eye_piece, param, expRange, gainRange = get_param(
+        cli_options, cwd_path / "eFinder.config")
     logging.debug(f"{param=}")
 
     camera_type = param["Camera Type"] if cli_options.real_camera else "TEST"
@@ -654,8 +690,8 @@ def main(cli_options: CLIOptions):
     camera_settings = CameraSettings(camera, camera_debug, param["Gain"],
                                      param["Exposure"], "")
     print(dir(cli_options))
-    cli_options.exp_range = expRange 
-    cli_options.gain_range = gainRange 
+    cli_options.exp_range = expRange
+    cli_options.gain_range = gainRange
     eFinder = EFinder(pix_scale=15, camera_settings=camera_settings,
                       cli_options=cli_options)
     eFinderGUI = EFinderGUI(nexus, param, camera_settings, cli_options)
@@ -668,7 +704,6 @@ def main(cli_options: CLIOptions):
         "Select: Solves",
         "Up:Align Dn:GoTo",
     )
-
 
     if cli_options.has_gui:
         eFinderGUI.start_loop()
@@ -718,6 +753,16 @@ if __name__ == "__main__":
         action="store_true",
         required=False,
     )
+
+    parser.add_argument(
+        "-n",
+        "--notmp",
+        help="Don't use the /dev/shm temporary directory.\
+                (usefull if not on pi)",
+        default=False,
+        action="store_true",
+        required=False,
+    )
     parser.add_argument(
         "-x", "--verbose", help="Set logging to debug mode", action="store_true"
     )
@@ -736,6 +781,12 @@ if __name__ == "__main__":
         fh.setLevel(logger.level)
         logger.addHandler(fh)
 
+    if args.notmp:
+        images_path = Path('/tmp')
+
+    utils.create_path(images_path)  # create dir if it doesn't yet exist
+
     cli_options = CLIOptions(
-        not args.fakehandpad, not args.fakecamera, not args.fakenexus, args.hasgui, [], [])
+        not args.fakehandpad, not args.fakecamera, not args.fakenexus,
+        args.hasgui, [], [])
     main(cli_options)

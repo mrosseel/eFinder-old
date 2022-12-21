@@ -5,7 +5,7 @@ import logging
 
 
 class PlateSolve:
-    def __init__(self, pix_scale, images_path: Path=Path('/dev/shm/images'), cwd_path: Path=Path.cwd()) -> None:
+    def __init__(self, pix_scale, images_path: Path, cwd_path: Path=Path.cwd()) -> None:
         self.cwd_path: Path = cwd_path 
         self.images_path: Path = images_path
         self.scale_low = str(pix_scale * 0.9)
@@ -60,9 +60,24 @@ class PlateSolve:
         result = subprocess.run(
             self.cmd + name_that_star + self.options, capture_output=True, text=True
         )
+        result_str = str(result.stdout)
         elapsed_time = time.time() - start_time
-        logging.debug(f"platesolve result is: {result}")
+        has_solved = "solved" in result_str
+        has_star = "The star" in result_str
+        star_name = self.get_star_name(result_str)
+        logging.debug(f"platesolve result is: {result_str}")
         logging.debug(f"platesolve command is: {self.cmd + name_that_star + self.options}")  
         logging.debug(f"Platesolve elapsed time is {elapsed_time:.2f}")
-        return result, elapsed_time
+        return has_solved, has_star, star_name, result_str, elapsed_time
+
+    def get_star_name(self, result_str: str):
+        lines = result_str.split("\n")
+        star_name = ""
+        for line in lines:
+            if line.startswith("  The star "):
+                star_name = line.split(" ")[4]
+                logging.info("Solve-field Plot found: ", star_name)
+                break
+
+        return star_name
 

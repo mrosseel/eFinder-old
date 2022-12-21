@@ -12,7 +12,7 @@ import utils
 class QHYCamera(CameraInterface):
     """The camera class for ZWO cameras.  Implements the CameraInterface interface."""
 
-    def __init__(self, handpad: Display, images_path=Path('/dev/shm/images'), home_path=Path.cwd()) -> None:
+    def __init__(self, handpad: Display, images_path), home_path=Path.cwd()) -> None:
         """Initializes the QHY camera
 
         Parameters:

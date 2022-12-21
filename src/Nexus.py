@@ -6,21 +6,22 @@ from datetime import datetime, timedelta
 import os
 import math
 import re
-import Display
+from Display import Display
 import Coordinates
+import logging
 
 
 class Nexus:
     """The Nexus utility class"""
 
-    def __init__(self, handpad: Display, coordinates: Coordinates) -> None:
+    def __init__(self, display: Display, coordinates: Coordinates) -> None:
         """Initializes the Nexus DSC
 
         Parameters:
         handpad (Display): The handpad that is connected to the eFinder
         coordinates (Coordinates): The coordinates utility class to be used in the eFinder
         """
-        self.handpad = handpad
+        self.display = display
         self.aligned = False
         self.nexus_link = "none"
         self.coordinates = coordinates
@@ -38,13 +39,13 @@ class Nexus:
                 self.ser.write(b":U#")
             self.ser.write(b":P#")
             time.sleep(0.1)
-            print(
+            logging.info(
                 "Connected to Nexus in",
                 str(self.ser.read(self.ser.in_waiting), "ascii"),
                 "via USB",
             )
             self.NexStr = "connected"
-            self.handpad.display("Found Nexus", "via USB", "")
+            self.display.display("Found Nexus", "via USB", "")
             time.sleep(1)
             self.nexus_link = "USB"
         except:
@@ -61,14 +62,14 @@ class Nexus:
                         s.send(b":U#")
                     s.send(b":P#")
                     time.sleep(0.1)
-                    print("Connected to Nexus in", str(s.recv(15), "ascii"), "via wifi")
+                    logging.info("Connected to Nexus in", str(s.recv(15), "ascii"), "via wifi")
                     self.NexStr = "connected"
-                    self.handpad.display("Found Nexus", "via WiFi", "")
+                    self.display.display("Found Nexus", "via WiFi", "")
                     time.sleep(1)
                     self.nexus_link = "Wifi"
             except:
-                print("no USB or Wifi link to Nexus")
-                self.handpad.display("Nexus not found", "", "")
+                logging.info("no USB or Wifi link to Nexus")
+                self.display.display("Nexus not found", "", "")
 
     def write(self, txt: str) -> None:
         """Write a message to the Nexus DSC
@@ -83,7 +84,7 @@ class Nexus:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((self.HOST, self.PORT))
                 s.send(bytes(txt.encode("ascii")))
-        print("sent", txt, "to Nexus")
+        logging.info("sent", txt, "to Nexus")
 
     def get(self, txt: str) -> str:
         """Receive a message from the Nexus DSC
@@ -104,7 +105,7 @@ class Nexus:
                 s.send(bytes(txt.encode("ascii")))
                 time.sleep(0.1)
                 res = str(s.recv(16).decode("ascii")).strip("#")
-        print("sent", txt, "got", res, "from Nexus")
+        logging.info("sent", txt, "got", res, "from Nexus")
         return res
 
     def read(self) -> None:
@@ -117,7 +118,7 @@ class Nexus:
         local_time = self.get(":GL#")
         local_date = self.get(":GC#")
         local_offset = float(self.get(":GG#"))
-        print(
+        logging.info(
             "Nexus reports: local datetime as",
             local_date,
             local_time,
@@ -130,25 +131,24 @@ class Nexus:
         format = "%m/%d/%Y %H:%M:%S"
         local_dt = datetime.strptime(dt_str, format)
         new_dt = local_dt + timedelta(hours=local_offset)
-        print("Calculated UTC", new_dt)
-        print("setting pi clock to:", end=" ")
+        logging.info("Calculated UTC", new_dt)
+        logging.info("setting pi clock to:", end=" ")
         os.system('sudo date -u --set "%s"' % new_dt + ".000Z")
         p = self.get(":GW#")
         if p != "AT2#":
-            self.handpad.display("Nexus reports", "not aligned yet", "")
+            self.display.display("Nexus reports", "not aligned yet", "")
         else:
-            self.handpad.display("eFinder ready", "Nexus reports" + p, "")
+            self.display.display("eFinder ready", "Nexus reports" + p, "")
             self.aligned = True
         time.sleep(1)
 
-    def read_altAz(self, arr):
+    def read_altAz(self):
         """Read the RA and declination from the Nexus DSC and convert them to altitude and azimuth
 
         Parameters:
-        arr (np.array): The arr variable to show on the handpad
 
         Returns:
-        np.array: The updated arr variable to show on the handpad
+        ra, dec and is_aligned
         """
         ra = self.get(":GR#").split(":")
         dec = re.split(r"[:*]", self.get(":GD#"))
@@ -161,23 +161,22 @@ class Nexus:
         self.altaz = self.coordinates.conv_altaz(self, *(self.radec))
         self.scope_alt = self.altaz[0] * math.pi / 180
         self.short = ra[0] + ra[1] + dec[0] + dec[1]
-        print(
-            "Nexus RA:  ",
-            self.coordinates.hh2dms(self.radec[0]),
-            "  Dec: ",
-            self.coordinates.dd2dms(self.radec[1]),
-        )
+        nexus_ra = self.coordinates.hh2dms(self.radec[0])
+        nexus_dec = self.coordinates.dd2dms(self.radec[1])
+
+        logging.debug(f"Nexus RA: {nexus_ra}, Dec: {nexus_dec}")
         if arr is not None:
-            arr[0, 1][0] = "Nex: RA " + self.coordinates.hh2dms(self.radec[0])
-            arr[0, 1][1] = "   Dec " + self.coordinates.dd2dms(self.radec[1])
+            arr[0, 1][0] = "Nex: RA " + nexus_ra
+            arr[0, 1][1] = "   Dec " + nexus_dec
+        is_aligned = False
         p = self.get(":GW#")
         if p == "AT2#":
+            is_aligned = True
             if arr is not None:
                 arr[0, 4][1] = "Nexus is aligned"
                 arr[0, 4][0] = "'Select' syncs"
 
-        if arr is not None:
-            return arr
+        return nexus_ra, nexus_dec, is_aligned, p
 
     def get_short(self):
         """Returns a summary of RA & Dec for file labelling
