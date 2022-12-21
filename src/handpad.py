@@ -1,8 +1,8 @@
-from enum import Enum
 from Display import Display
 from collections import namedtuple
 import numpy as np
 import time
+from typing import Dict
 
 BTN_SELECT = 21
 DO_SELECT = 7  # does solve mostly
@@ -27,10 +27,13 @@ class HandPad():
         'line1', 'line2', 'line3', 'up', 'down', 'left',
                           'right', 'select', 'longselect'])
     pos = Pos(x=0, y=0)
+    offset_str = None
+    nexus_tuple = ("", "")
 
-    def __init__(self, display: Display, version: str) -> None:
+    def __init__(self, display: Display, version: str, param: Dict) -> None:
         self.display = display
         self.p = ""  # TODO needs to be updated
+        self.param = param
 
         self.home = self.Cmds(
             line1="ScopeDog", line2="eFinder",
@@ -63,13 +66,13 @@ class HandPad():
             select="align()", longselect=""
         )
         self.polar = self.Cmds(
-            line1="'Select' Polaris", line2=offset_str, line3="",
+            line1="'Select' Polaris", line2=self.offset_str, line3="",
             up="", down="",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="measure_offset()", longselect=""
         )
         self.reset = self.Cmds(
-            line1="'Select' Resets", line2=offset_str, line3="",
+            line1="'Select' Resets", line2=self.offset_str, line3="",
             up="", down="",
             left="self.left_right(-1)", right="",
             select="reset_offset()", longselect="")
@@ -78,30 +81,32 @@ class HandPad():
             left="", right="self.left_right(1)",
             select="self.go_solve()", longselect="")
         self.exp = self.Cmds(
-            line1="Exposure", line2=param["Exposure"], line3="",
+            line1="Exposure", line2=self.param["Exposure"], line3="",
             up="self.up_down_inc(1,1)", down="self.up_down_inc(1,-1)",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()")
         self.gn = self.Cmds(
-            line1="Gain", line2=param["Gain"], line3="",
+            line1="Gain", line2=self.param["Gain"], line3="",
             up="self.up_down_inc(2,1)", down="self.up_down_inc(2,-1)",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()")
         self.mode = self.Cmds(
-            line1="Test mode", line2=int(param["Test mode"]), line3="",
+            line1="Test mode", line2=int(self.param["Test mode"]), line3="",
             up="flip()", down="flip()",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()")
         self.status = self.Cmds(
-            line1="Nexus via " + nexus.get_nexus_link(),
-            line2="Nex align " + str(nexus.is_aligned()),
+            line1="Nexus via " + self.nexus_tuple[0],
+            line2="Nex align " + self.nexus_tuple[1],
             line3="Brightness", up="", down="",
             left="self.left_right(-1)", right="",
             select="self.go_solve()", longselect="self.goto()")
         self.arr = np.array(
             [
-                [home, nex, sol, delta, aligns, polar, reset],
-                [summary, exp, gn, mode, status, status, status],
+                [self.home, self.nex, self.sol, self.delta,
+                    self.aligns, self.polar, self.reset],
+                [self.summary, self.exp, self.gn, self.mode,
+                    self.status, self.status, self.status],
             ]
         )
         self.nex_pos = Pos(0, 1)
@@ -134,11 +139,14 @@ class HandPad():
     def get_cmd(self, pos: Pos) -> Cmds:
         return self.arr[pos]
 
-    def on_button(self, button):
+    def on_button(self, button, param, offset_str):
+        self.param = param
+        self.offset_str = offset_str
+        result = None
         if button == BTN_SELECT:
-            exec(self.arr[self.pos][DO_SELECT])
+            return self.arr[self.pos][DO_SELECT]
         elif button == BTN_LONGSELECT:
-            exec(self.arr[self.pos][DO_LONGSELECT])
+            return self.arr[self.pos][DO_LONGSELECT]
         elif button == BTN_UP:
             exec(self.arr[self.pos][DO_UP])
         elif button == BTN_DOWN:
@@ -147,6 +155,7 @@ class HandPad():
             exec(self.arr[self.pos][DO_LEFT])
         elif button == BTN_RIGHT:
             exec(self.arr[self.pos][DO_RIGHT])
+        return result
 
     # array determines what is displayed, computed and what each button does for each screen.
     # [first line,second line,third line, up button action,down...,left...,right...,select button short press action, long press action]

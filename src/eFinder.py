@@ -20,21 +20,20 @@ from PIL import Image
 import psutil
 import threading
 import select
+import utils
+import logging
+import argparse
 from pathlib import Path
 import fitsio
 from Nexus import Nexus
 import Coordinates
 from platesolve import PlateSolve
 from common import Common
-import utils
-import logging
-import argparse
 from Display import Display, PrintOutput, SerialOutput
 from NexusDebug import NexusDebug
-import logging
 from handpad import HandPad
 from common import CameraData, CLIData, AstroData, OffsetData
-from typing import Tuple, Dict, List
+from typing import Dict
 from datetime import datetime
 
 
@@ -63,6 +62,9 @@ class EFinder():
             float(self.param["d_x"]), float(self.param["d_y"])
         )
         self.offset_data.offset_str = dxstr + "," + dystr
+        scan = threading.Thread(target=self.reader)
+        scan.daemon = True
+        scan.start()
 
     def align(self, nexus, offset_flag=False):
         # global align_count, solve, sync_count, param, offset_flag, arr
@@ -293,27 +295,32 @@ class EFinder():
         while True:
             if output.get_box() in select.select([output.get_box()], [], [], 0)[0]:
                 button = output.get_box().readline().decode("ascii").strip("\r\n")
-                self.handpad.on_button(button)
+                nexus_tuple = self.astro_data.nexus.get_nexus_link(), str(
+                    self.astro_data.nexus.is_aligned())
+                result = self.handpad.on_button(
+                    button, self.param, self.offset_data.offset_str, nexus_tuple)
+                if result:
+                    exec(result)
             time.sleep(0.1)
 
 
 # main code starts here
 def main(cli_data: CLIData):
-    pix_scale = 15
     logging.info(f"Options are: {cli_data}")
+    cwd_path = Path.cwd()
+    pix_scale = 15
+    param = EFinder.get_param(cwd_path)
     output = Display(SerialOutput()) if cli_data.real_handpad else Display(
         PrintOutput())
-    handpad = HandPad(output, version_string)
+    handpad = HandPad(output, version_string, param)
     coordinates = Coordinates.Coordinates()
     nexus: Nexus = Nexus(output, coordinates) if cli_data.real_nexus else NexusDebug(
         output, coordinates)
     nexus.read()
-    cwd_path = Path.cwd()
     common = Common(cwd_path=cwd_path,
                     images_path=cli_data.images_path,
                     pix_scale=pix_scale,
                     version=version_string, version_suffix="")
-    param = EFinder.get_param(cwd_path)
 
     output.display("ScopeDog eFinder", "Ready", "")
     # update_summary()
@@ -325,11 +332,11 @@ def main(cli_data: CLIData):
     #                            "Nexus is aligned",
     #                            None)
 
-    camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
+    camera_type = param["Camera Type"] if cli_data.real_camera else 'TEST'
     camera_debug = common.pick_camera('TEST', output, images_path)
     camera = common.pick_camera(camera_type, output, images_path)
 
-    output.display("ScopeDog eFinder", "v" + version, "")
+    output.display("ScopeDog eFinder", "v" + version_string, "")
     # main program loop, scan buttons and refresh display
     camera_data = CameraData(camera=camera,
                              camera_debug=camera_debug,
@@ -340,12 +347,9 @@ def main(cli_data: CLIData):
     astro_data = AstroData(nexus=nexus)
     offset_data = OffsetData()
 
-    eFinder = EFinder(handpad, common, camera_data, cli_data,
-                      astro_data, offset_data, param, temp_path)
+    eFinder = EFinder(handpad, common, coordinates, camera_data, cli_data,
+                      astro_data, offset_data, param)
 
-    scan = threading.Thread(target=reader)
-    scan.daemon = True
-    scan.start()
 
     while True:  # next loop looks for button press and sets display option x,y
         time.sleep(0.1)
