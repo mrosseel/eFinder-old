@@ -60,6 +60,7 @@ class NexusDebug(NexusInterface):
         Returns:
         ra, dec and is_aligned
         """
+        return 15, 12, True, ""
 
     def get_short(self):
         """Returns a summary of RA & Dec for file labelling

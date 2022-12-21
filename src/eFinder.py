@@ -291,10 +291,11 @@ class EFinder():
                 h.write("%s:%s\n" % (key, value))
 
     def reader(self):
-        output = self.handpad.display
         while True:
-            if output.get_box() in select.select([output.get_box()], [], [], 0)[0]:
-                button = output.get_box().readline().decode("ascii").strip("\r\n")
+            logging.debug(f"here, {type(self.handpad.display)}")
+            button = self.handpad.display.get_button_press()
+            logging.debug(f"here2, {button}")
+            if button:
                 nexus_tuple = self.astro_data.nexus.get_nexus_link(), str(
                     self.astro_data.nexus.is_aligned())
                 result = self.handpad.on_button(
@@ -310,8 +311,7 @@ def main(cli_data: CLIData):
     cwd_path = Path.cwd()
     pix_scale = 15
     param = EFinder.get_param(cwd_path)
-    output = Display(SerialOutput()) if cli_data.real_handpad else Display(
-        PrintOutput())
+    output = SerialOutput() if cli_data.real_handpad else PrintOutput()
     handpad = HandPad(output, version_string, param)
     coordinates = Coordinates()
     nexus: Nexus = Nexus(output, coordinates) if cli_data.real_nexus else NexusDebug(

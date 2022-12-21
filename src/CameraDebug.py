@@ -25,14 +25,14 @@ class CameraDebug(CameraInterface):
         exposure_time (float): The exposure time in seconds
         gain (float): The gain
         radec (str)"""
-        if extras['testimage'] == 'm31':
+        if 'testimage' not in extras:
+            logging.warning("No debug image was selected, choosing polaris")
+            self.copy_polaris()
+        elif extras['testimage'] == 'm31':
             logging.info("Capturing debug image of m31")
             copyfile(self.cwd_path / "testimages/m31.jpg", self.images_path / "capture.jpg")
         elif extras['testimage'] == 'polaris':
             logging.info("Capturing debug image of Polaris")
-            self.copy_polaris()
-        else:
-            logging.warning("No debug image was selected, choosing polaris")
             self.copy_polaris()
 
     def copy_polaris(self):

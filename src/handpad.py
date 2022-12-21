@@ -1,24 +1,25 @@
-from Display import Display
+from Display import Display, DisplayButtons
 from collections import namedtuple
-import numpy as np
 import time
+import logging
 from typing import Dict
 
-BTN_SELECT = 21
-DO_SELECT = 7  # does solve mostly
-BTN_LONGSELECT = 20
-DO_LONGSELECT = 8
-BTN_LEFT = 16
-DO_LEFT = 5
-BTN_RIGHT = 18
-DO_RIGHT = 6
-BTN_UP = 17
-DO_UP = 3
-BTN_DOWN = 19
-DO_DOWN = 4
 
 Pos = namedtuple('Pos', ['x', 'y'])
 increment = [0, 1, 5, 1, 1]
+
+
+class Commands:
+    def __init__(self, line1, line2, line3, up, down, left, right, select, longselect):
+        self.line1 = line1
+        self.line2 = line2
+        self.line3 = line3
+        self.up = up
+        self.down = down
+        self.left = left
+        self.right = right
+        self.select = select
+        self.longselect = longselect
 
 
 class HandPad():
@@ -35,80 +36,83 @@ class HandPad():
         self.p = ""  # TODO needs to be updated
         self.param = param
 
-        self.home = self.Cmds(
+        self.home = Commands(
             line1="ScopeDog", line2="eFinder",
             line3="ver" + version, up="",
             down="self.up_down(1)",
             left="self.left_right(1)",
             right="", select="self.go_solve()", longselect=""
         )
-        self.nex = self.Cmds(
+        self.nex = Commands(
             line1="Nex: RA", line2="Dec", line3="", up="", down="",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()"
         )
-        self.sol = self.Cmds(
+        self.sol = Commands(
             line1="No solution yet", line2="'select' solves", line3="",
             up="", down="",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()"
         )
-        self.delta = self.Cmds(
+        self.delta = Commands(
             line1="Delta: No solve", line2="'select' solves", line3="",
             up="", down="",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()"
         )
-        self.aligns = self.Cmds(
+        self.aligns = Commands(
             line1="'Select' aligns", line2="not aligned yet", line3=str(self.p),
             up="", down="",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="align()", longselect=""
         )
-        self.polar = self.Cmds(
+        self.polar = Commands(
             line1="'Select' Polaris", line2=self.offset_str, line3="",
             up="", down="",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="measure_offset()", longselect=""
         )
-        self.reset = self.Cmds(
+        self.reset = Commands(
             line1="'Select' Resets", line2=self.offset_str, line3="",
             up="", down="",
             left="self.left_right(-1)", right="",
-            select="reset_offset()", longselect="")
-        self.summary = self.Cmds(
+            select="reset_offset()", longselect=""
+        )
+        self.summary = Commands(
             line1="", line2="", line3="", up="self.up_down(-1)", down="",
             left="", right="self.left_right(1)",
-            select="self.go_solve()", longselect="")
-        self.exp = self.Cmds(
+            select="self.go_solve()", longselect=""
+        )
+        self.exp = Commands(
             line1="Exposure", line2=self.param["Exposure"], line3="",
             up="self.up_down_inc(1,1)", down="self.up_down_inc(1,-1)",
             left="self.left_right(-1)", right="self.left_right(1)",
-            select="self.go_solve()", longselect="self.goto()")
-        self.gn = self.Cmds(
+            select="self.go_solve()", longselect="self.goto()"
+        )
+        self.gn = Commands(
             line1="Gain", line2=self.param["Gain"], line3="",
             up="self.up_down_inc(2,1)", down="self.up_down_inc(2,-1)",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()")
-        self.mode = self.Cmds(
+        self.mode = Commands(
             line1="Test mode", line2=int(self.param["Test mode"]), line3="",
             up="flip()", down="flip()",
             left="self.left_right(-1)", right="self.left_right(1)",
             select="self.go_solve()", longselect="self.goto()")
-        self.status = self.Cmds(
+        self.status = Commands(
             line1="Nexus via " + self.nexus_tuple[0],
             line2="Nex align " + self.nexus_tuple[1],
             line3="Brightness", up="", down="",
             left="self.left_right(-1)", right="",
             select="self.go_solve()", longselect="self.goto()")
-        self.arr = np.array(
-            [
-                [self.home, self.nex, self.sol, self.delta,
-                    self.aligns, self.polar, self.reset],
-                [self.summary, self.exp, self.gn, self.mode,
-                    self.status, self.status, self.status],
-            ]
-        )
+        logging.info(f"self.mode = {self.mode}, {type(self.mode)}")
+        self.arr = [
+            [self.home, self.nex, self.sol, self.delta,
+             self.aligns, self.polar, self.reset],
+            [self.summary, self.exp, self.gn, self.mode,
+             self.status, self.status, self.status],
+        ]
+        logging.info(f"self.arr[0][0] is {type(self.arr[0][0])}")
         self.nex_pos = Pos(0, 1)
         self.summary_pos = Pos(1, 0)
         self.sol_pos = Pos(0, 2)
@@ -117,45 +121,48 @@ class HandPad():
         self.polar_pos = Pos(0, 5)
         self.reset_pos = Pos(0, 6)
 
+    def get(self, pos: Pos) -> Cmds:
+        return self.arr[pos[0]][pos[1]]
+
     def set_lines(self, pos: Pos, line1, line2, line3):
         if line1 is not None:
-            self.arr[pos].line1 = line1
+            self.get(pos).line1 = line1
         if line2 is not None:
-            self.arr[pos].line2 = line2
+            self.get(pos).line2 = line2
         if line3 is not None:
-            self.arr[pos].line3 = line3
+            self.get(pos).line3 = line3
         # self.display.display(line1, line2, line3)
 
     def set_pos(self, pos: Pos):
         self.pos = pos
 
     def display_array(self):
+        cmd: self.Cmds = self.get(self.pos)
         self.display.display(
-            self.arr[self.pos].line1, self.arr[self.pos].line2, self.arr[self.pos].line3)
+            cmd.line1, cmd.line2, cmd.line3)
 
     def get_current_cmd(self) -> Cmds:
         return self.get_cmd(self.pos)
 
     def get_cmd(self, pos: Pos) -> Cmds:
-        return self.arr[pos]
+        return self.get(pos)
 
-    def on_button(self, button, param, offset_str):
+    def on_button(self, button, param, offset_str, nexus_tuple):
         self.param = param
         self.offset_str = offset_str
-        result = None
-        if button == BTN_SELECT:
-            return self.arr[self.pos][DO_SELECT]
-        elif button == BTN_LONGSELECT:
-            return self.arr[self.pos][DO_LONGSELECT]
-        elif button == BTN_UP:
-            exec(self.arr[self.pos][DO_UP])
-        elif button == BTN_DOWN:
-            exec(self.arr[self.pos][DO_DOWN])
-        elif button == BTN_LEFT:
-            exec(self.arr[self.pos][DO_LEFT])
-        elif button == BTN_RIGHT:
-            exec(self.arr[self.pos][DO_RIGHT])
-        return result
+        self.nexus_tuple = nexus_tuple
+        if button == DisplayButtons.BTN_SELECT:
+            return self.get(self.pos).select
+        elif button == DisplayButtons.BTN_LONGSELECT:
+            return self.get(self.pos).longselect
+        elif button == DisplayButtons.BTN_UP:
+            exec(self.get(self.pos).up)
+        elif button == DisplayButtons.BTN_DOWN:
+            exec(self.get(self.pos).down)
+        elif button == DisplayButtons.BTN_LEFT:
+            exec(self.get(self.pos).left)
+        elif button == DisplayButtons.BTN_RIGHT:
+            exec(self.get(self.pos).right)
 
     # array determines what is displayed, computed and what each button does for each screen.
     # [first line,second line,third line, up button action,down...,left...,right...,select button short press action, long press action]
@@ -164,30 +171,29 @@ class HandPad():
     # button texts are infact def functions
 
     def up_down(self, v):
-        self.pos = Pos(self.pos.x+v, self.pos.y)
+        self.pos=Pos(self.pos.x+v, self.pos.y)
         self.display_array()
 
     def left_right(self, v):
-        self.pos = Pos(self.pos.x, self.pos.y+v)
+        self.pos=Pos(self.pos.x, self.pos.y+v)
         self.display_array()
 
     def up_down_inc(self, i, sign):
-        global increment
-        self.arr[self.pos].line2 = int(
-            float(self.arr[self.pos].line2)) + increment[i] * sign
-        param[self.arr[self.pos].line1] = float(self.arr[self.pos].line2)
+        self.get(self.pos).line2=int(
+            float(self.get(self.pos).line2)) + self.increment[i] * sign
+        self.param[self.get(self.pos).line1]=float(self.get(self.pos).line2)
         self.display_array()
         self.update_summary()
         time.sleep(0.1)
 
     def flip(self):
-        self.arr[self.pos].line2 = 1 - int(float(self.arr[self.pos].line2))
-        param[self.arr[self.pos].line1] = str((self.arr[self.pos].line2))
+        self.get(self.pos).line2=1 - int(float(self.get(self.pos).line2))
+        self.param[self.get(self.pos).line1]=str((self.get(self.pos).line2))
         self.display_array()
         self.update_summary()
         time.sleep(0.1)
 
     def update_summary(self):
-        self.arr[self.summary].line1 = f'Ex:{str(self.param["Exposure"])}  Gn:{str(self.param["Gain"])}'
-        self.arr[self.summary].line2 = f'Test mode:{str(self.param["Test mode"])}'
+        self.arr[self.summary].line1=f'Ex:{str(self.param["Exposure"])}  Gn:{str(self.param["Gain"])}'
+        self.arr[self.summary].line2=f'Test mode:{str(self.param["Test mode"])}'
         save_param()
