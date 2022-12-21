@@ -64,66 +64,6 @@ eye_piece = []
 pix_scale = 15
 
 
-class EFinder():
-    def __init__(self, camera_data: CameraData, cli_data: CLIData,
-                 astro_data: AstroData, offset_data: OffsetData):
-        self.camera_data = camera_data
-        self.cli_data = cli_data
-        self.astro_data = astro_data
-        self.offset_data = offset_data
-
-
-    def align(self):
-        global align_count, solve, sync_count, param, offset_flag, arr
-        new_arr = nexus.read_altAz(arr)
-        arr = new_arr
-        self.capture()
-        self.imgDisplay()
-        solveImage()
-        if solve == False:
-            handpad.display(arr[x, y][0], "Solved Failed", arr[x, y][2])
-            return
-        align_ra = ":Sr" + coordinates.dd2dms((solved_radec)[0]) + "#"
-        align_dec = ":Sd" + coordinates.dd2aligndms((solved_radec)[1]) + "#"
-        valid = nexus.get(align_ra)
-        print(align_ra)
-        if valid == "0":
-            print("invalid position")
-            handpad.display(arr[x, y][0], "Invalid position", arr[x, y][2])
-            return
-        valid = nexus.get(align_dec)
-        print(align_dec)
-        if valid == "0":
-            print("invalid position")
-            handpad.display(arr[x, y][0], "Invalid position", arr[x, y][2])
-            return
-        reply = nexus.get(":CM#")
-        print("reply: ", reply)
-        p = nexus.get(":GW#")
-        print("Align status reply ", p)
-        align_count += 1
-        if p != "AT2":
-            handpad.display(
-                "'select' aligns",
-                "align count: " + str(align_count),
-                "Nexus reply: " + p[0:3],
-            )
-        else:
-            if p == "AT2":
-                sync_count += 1
-                handpad.display(
-                    "'select' syncs",
-                    "Sync count " + str(align_count),
-                    "Nexus reply " + p[0:3],
-                )
-                nexus.set_aligned(True)
-        return
-
-
-
-eFinder: EFinder
-
-
 # TODO MR reduce globals to zero
 def capture(camera_settings: CameraSettings, radec):
     use_camera = camera_settings.camera
@@ -169,7 +109,8 @@ def solveImage(is_offset=False):
     solvedPos = common.applyOffset(nexus, offset)
     ra, dec, d = solvedPos.apparent().radec(eFinderGUI.ts.now())
     solved_radec = ra.hours, dec.degrees
-    solved_altaz = coordinates.conv_altaz(nexus, *(solved_radec))
+    solved_altaz = coordinates.conv_altaz(
+        nexus.get_long(), nexus.get_lat(), *(solved_radec))
     scopeAlt = solved_altaz[0] * math.pi / 180
     eFinderGUI.solve_image_success(solved_radec, solved_altaz)
     solved = True
@@ -488,7 +429,8 @@ def readTarget():
         abs(abs(float(dec[0])) + float(dec[1]) / 60 + float(dec[2]) / 3600),
         float(dec[0]),
     )
-    goto_altaz = coordinates.conv_altaz(nexus, *(goto_radec))
+    goto_altaz = coordinates.conv_altaz(
+        nexus.get_long(), nexus.get_lat(), *(goto_radec))
     tk.Label(
         window,
         width=10,
@@ -573,7 +515,8 @@ def move():
     dec = float(goto_dec[0]) + float(goto_dec[1]) / \
         60 + float(goto_dec[2]) / 3600
     logging.info("%s %s %s" % ("lgoto radec", ra, dec))
-    alt_g, az_g = coordinates.conv_altaz(nexus, ra, dec)
+    alt_g, az_g = coordinates.conv_altaz(
+        nexus.get_long, nexus.get_lat, ra, dec)
     logging.info("%s %s %s" % ("target Az Alt", az_g, alt_g))
     delta_Az = (az_g - solved_altaz[1]) * 60  # +ve move scope right
     delta_Alt = (alt_g - solved_altaz[0]) * 60  # +ve move scope up

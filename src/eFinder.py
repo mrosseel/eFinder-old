@@ -29,12 +29,13 @@ from common import Common
 import utils
 import logging
 import argparse
-from Display import Display, PrintOutput
+from Display import Display, PrintOutput, SerialOutput
 from NexusDebug import NexusDebug
 import logging
 from handpad import HandPad
 from common import CameraData, CLIData, AstroData, OffsetData
 from typing import Tuple, Dict, List
+from datetime import datetime
 
 
 version_string = "17_0"
@@ -42,7 +43,7 @@ version_string = "17_0"
 
 class EFinder():
 
-    def __init__(self, handpad: HandPad, common: Common,
+    def __init__(self, handpad: HandPad, common: Common, coordinates: Coordinates,
                  camera_data: CameraData, cli_data: CLIData,
                  astro_data: AstroData, offset_data: OffsetData,
                  param: Dict):
@@ -54,19 +55,25 @@ class EFinder():
         self.cwd_path = Path.cwd()
         self.param = param
         self.common = common
+        self.coordinates = coordinates
         self.version = self.common.get_version()
         self.platesolve = PlateSolve(
             camera_data.pix_scale, self.cli_data.images_path)
+        _, _, dxstr, dystr = self.common.dxdy2pixel(
+            float(self.param["d_x"]), float(self.param["d_y"])
+        )
+        self.offset_data.offset_str = dxstr + "," + dystr
 
     def align(self, nexus, offset_flag=False):
         # global align_count, solve, sync_count, param, offset_flag, arr
+        output = self.handpad.display
         nexus_ra, nexus_dec, is_aligned, _ = nexus.read_altAz()
-        handpad.set_lines(handpad.nex,
-                          f"Nex: RA {nexus_ra}", f"   Dec {nexus_dec}", None)
+        self.handpad.set_lines(self.handpad.nex_pos,
+                               f"Nex: RA {nexus_ra}", f"   Dec {nexus_dec}", None)
         if is_aligned:
-            handpad.set_lines(handpad.aligns,
-                              "'Select' syncs",
-                              "Nexus is aligned", None)
+            self.handpad.set_lines(self.handpad.aligns_pos,
+                                   "'Select' syncs",
+                                   "Nexus is aligned", None)
 
         self.capture(offset_flag)
         self.imgDisplay()
@@ -76,9 +83,10 @@ class EFinder():
             output.display(cmd.line1, "Solved Failed", cmd.line3)
             return
         align_ra = ":Sr" + \
-            coordinates.dd2dms((self.astro_data.solved_radec)[0]) + "#"
+            self.coordinates.dd2dms((self.astro_data.solved_radec)[0]) + "#"
         align_dec = ":Sd" + \
-            coordinates.dd2aligndms((self.astro_data.solved_radec)[1]) + "#"
+            self.coordinates.dd2aligndms(
+                (self.astro_data.solved_radec)[1]) + "#"
         nexus_response = nexus.get(align_ra)
         logging.info(align_ra)
         if nexus_response == "0":
@@ -120,7 +128,7 @@ class EFinder():
                 extras['testimage'] = 'polaris'
             else:
                 extras['testimage'] = 'm13'
-        radec = nexus.get_short()
+        radec = self.astro_data.nexus.get_short()
         self.camera_data.camera.capture(
             int(float(self.param["Exposure"]) * 1000000),
             int(float(self.param["Gain"])),
@@ -137,6 +145,7 @@ class EFinder():
 
     def solveImage(self, offset_flag=False):
         # global offset_flag, solve, solvedPos, elapsed_time, star_name, star_name_offset, solved_radec, solved_altaz
+        output = self.handpad.display
         output.display("Started solving", "", "")
         has_solved, has_star, star_name, _, elapsed_time = self.platesolve.solve_image(
             offset_flag)
@@ -158,11 +167,12 @@ class EFinder():
         self.astro_data.solved_radec = solved_radec
         self.astro_data.solved_altaz = solved_altaz
         self.astro_data.nexus.set_scope_alt(solved_altaz[0] * math.pi / 180.0)
-        handpad.set_lines(handpad.sol,
-                          "Sol: RA " + coordinates.hh2dms(solved_radec[0]),
-                          "   Dec " + coordinates.dd2dms(solved_radec[1]),
-                          "time: " + str(elapsed_time)[0:4] + " s"
-                          )
+        self.handpad.set_lines(self.handpad.sol_pos,
+                               "Sol: RA " +
+                               coordinates.hh2dms(solved_radec[0]),
+                               "   Dec " + coordinates.dd2dms(solved_radec[1]),
+                               "time: " + str(elapsed_time)[0:4] + " s"
+                               )
         self.deltaCalc(elapsed_time)
 
     def deltaCalc(self, elapsed_time):
@@ -173,14 +183,15 @@ class EFinder():
             self.astro_data.deltaAlt)
         deltaXstr = "{: .2f}".format(float(deltaAz))
         deltaYstr = "{: .2f}".format(float(deltaAlt))
-        handpad.set_lines(handpad.delta,
-                          "Delta: x= " + deltaXstr,
-                          "       y= " + deltaYstr,
-                          "time: " + str(elapsed_time)[0:4] + " s"
-                          )
+        self.handpad.set_lines(self.handpad.delta_pos,
+                               "Delta: x= " + deltaXstr,
+                               "       y= " + deltaYstr,
+                               "time: " + str(elapsed_time)[0:4] + " s"
+                               )
 
     def measure_offset(self):
         # global self.offset_data.offset_str, offset_flag, param, scope_x, scope_y, star_name
+        output = self.handpad.display
         offset_flag = True
         output.display("started capture", "", "")
         self.capture(offset_flag)
@@ -196,19 +207,21 @@ class EFinder():
         self.param["d_y"] = d_y
         self.save_param()
         self.offset_data.offset_str = dxstr + "," + dystr
-        self.handpad.set_lines(handpad.polar,
-                               None, "new " + self.offset_data.offset_str, None)
-        self.handpad.set_lines(handpad.reset,
-                               None, "new " + self.offset_data.offset_str, None)
-        cmd = self.handpad.get_cmd(self.handpad.polar)
+        self.handpad.set_lines(self.handpad.polar_pos,
+                               None, f"new {self.offset_data.offset_str}", None)
+        self.handpad.set_lines(self.handpad.reset_pos,
+                               None, f"new {self.offset_data.offset_str}", None)
+        cmd = self.handpad.get_cmd(self.handpad.polar_pos)
         output.display(cmd.line1, cmd.line2,
                        f"{self.offset_data.offset_star_name} found")
 
     def go_solve(self):
         # global x, y, solve, arr
-        nexus_ra, nexus_dec, is_aligned, _ = nexus.read_altAz()
-        handpad.set_lines(handpad.nex,
-                          f"Nex: RA {nexus_ra}", f"   Dec {nexus_dec}", None)
+        output = self.handpad.display
+        nexus_ra, nexus_dec, is_aligned, _ = self.astro_data.nexus.read_altAz()
+        self.handpad.set_lines(
+            self.handpad.nex_pos, f"Nex: RA {nexus_ra}",
+            f"   Dec {nexus_dec}", None)
         output.display("Image capture", "", "")
         self.capture()
         self.imgDisplay()
@@ -219,10 +232,11 @@ class EFinder():
         else:
             output.display("Not Solved", "", "")
             return
-        self.handpad.set_pos(self.handpad.delta)
+        self.handpad.set_pos(self.handpad.delta_pos)
         self.handpad.display_array()
 
     def goto(self):
+        output = self.handpad.display
         nexus = self.astro_data.nexus
         output.display("Attempting", "GoTo++", "")
         goto_ra = nexus.get(":Gr#")
@@ -249,24 +263,23 @@ class EFinder():
         self.param["d_x"] = 0
         self.param["d_y"] = 0
         self.offset_data.offset_str = "0,0"
-        self.handpad.set_lines(self.handpad.polar, None,
+        self.handpad.set_lines(self.handpad.polar_pos, None,
                                f"new {self.offset_data.offset_str}", None)
-        self.handpad.set_lines(self.handpad.reset, None,
+        self.handpad.set_lines(self.handpad.reset_pos, None,
                                f"new {self.offset_data.offset_str}", None)
         self.handpad.display_array()
         self.save_param()
 
-    def get_param(self):
+    @staticmethod
+    def get_param(cwd_path: Path):
+        param = dict()
         # global param, self.offset_data.offset_str
-        if os.path.exists(self.cwd_path / "eFinder.config"):
-            with open(self.cwd_path / "eFinder.config") as h:
+        if os.path.exists(cwd_path / "eFinder.config"):
+            with open(cwd_path / "eFinder.config") as h:
                 for line in h:
                     line = line.strip("\n").split(":")
                     param[line[0]] = str(line[1])
-            _, _, dxstr, dystr = self.common.dxdy2pixel(
-                float(param["d_x"]), float(param["d_y"])
-            )
-            self.offset_data.offset_str = dxstr + "," + dystr
+        return param
 
     def save_param(self):
         # global param
@@ -280,38 +293,37 @@ class EFinder():
         while True:
             if output.get_box() in select.select([output.get_box()], [], [], 0)[0]:
                 button = output.get_box().readline().decode("ascii").strip("\r\n")
-                handpad.on_button(button)
+                self.handpad.on_button(button)
             time.sleep(0.1)
 
 
 # main code starts here
 def main(cli_data: CLIData):
+    pix_scale = 15
     logging.info(f"Options are: {cli_data}")
-    output = Display() if cli_data.realHandpad else Display(PrintOutput())
-    handpad = HandPad(output, version)
+    output = Display(SerialOutput()) if cli_data.real_handpad else Display(
+        PrintOutput())
+    handpad = HandPad(output, version_string)
     coordinates = Coordinates.Coordinates()
     nexus: Nexus = Nexus(output, coordinates) if cli_data.real_nexus else NexusDebug(
         output, coordinates)
     nexus.read()
-    common = Common(cwd_path=Path.cwd(),
+    cwd_path = Path.cwd()
+    common = Common(cwd_path=cwd_path,
                     images_path=cli_data.images_path,
-                    pix_scale=camera_data.pix_scale,
-                    version=version, version_suffix="")
-    param = dict()
-    get_param()
+                    pix_scale=pix_scale,
+                    version=version_string, version_suffix="")
+    param = EFinder.get_param(cwd_path)
 
     output.display("ScopeDog eFinder", "Ready", "")
-    update_summary()
-    deg_x, deg_y, dxstr, dystr = common.dxdy2pixel(
-        float(param["d_x"]), float(param["d_y"]))
-    self.offset_data.offset_str = dxstr + "," + dystr
-    new_arr = nexus.read_altAz(arr)
-    arr = new_arr
-    if nexus.is_aligned():
-        handpad.set_lines(handpad.aligns,
-                          "'Select' syncs",
-                          "Nexus is aligned",
-                          None)
+    # update_summary()
+    # new_arr = nexus.read_altAz(arr)
+    # arr = new_arr
+    # if nexus.is_aligned():
+    #     self.handpad.set_lines(self.handpad.aligns_pos,
+    #                            "'Select' syncs",
+    #                            "Nexus is aligned",
+    #                            None)
 
     camera_type = param["Camera Type"] if not fakeCamera else 'TEST'
     camera_debug = common.pick_camera('TEST', output, images_path)
@@ -323,7 +335,7 @@ def main(cli_data: CLIData):
                              camera_debug=camera_debug,
                              gain=1,
                              exposure=1,
-                             pix_scale=15,
+                             pix_scale=pix_scale,
                              testimage="")
     astro_data = AstroData(nexus=nexus)
     offset_data = OffsetData()
@@ -405,6 +417,7 @@ if __name__ == "__main__":
         fh.setLevel(logger.level)
         logger.addHandler(fh)
 
+    images_path = Path("/dev/shm")
     if args.notmp:
         images_path = Path('/tmp')
 

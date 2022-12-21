@@ -51,7 +51,7 @@ class SerialOutput(Output):
         self.box.write(bytes(("2:" + line2 + "\n").encode("UTF-8")))
 
 
-class PrintOutput:
+class PrintOutput(Output):
     nr_chars = 20
 
     def __init__(self) -> None:
@@ -74,15 +74,9 @@ class Display(Output):
     """All methods to work with the handpad"""
     output: Output
 
-    def __init__(self, version: str, output: Output) -> None:
-        """Initialize the Handpad class,
-
-        Parameters:
-        version (str): The version of the eFinder software
-        """
-        self.version = version
+    def __init__(self, output: Output) -> None:
+        """Initialize the Handpad class"""
         self.output = output if output is not None else SerialOutput()
-        self.display("eFinder", self.version, "")
 
     def display(self, line0: str, line1: str, line2: str) -> None:
         self.output.display(line0, line1, line2)

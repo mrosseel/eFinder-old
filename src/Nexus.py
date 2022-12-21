@@ -1,7 +1,6 @@
 import serial
 import time
 import socket
-from skyfield.api import load, Star, wgs84
 from datetime import datetime, timedelta
 import os
 import math
@@ -198,7 +197,7 @@ class Nexus:
         """Returns the longitude of the observer
 
         Returns:
-        long: The lonogitude
+        long: The longitude
         """
         return self.long
 

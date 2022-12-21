@@ -104,13 +104,13 @@ class HandPad():
                 [summary, exp, gn, mode, status, status, status],
             ]
         )
-        self.nex = Pos(0, 1)
-        self.summary = Pos(1, 0)
-        self.sol = Pos(0, 2)
-        self.delta = Pos(0, 3)
-        self.aligns = Pos(0, 4)
-        self.polar = Pos(0, 5)
-        self.reset = Pos(0, 6)
+        self.nex_pos = Pos(0, 1)
+        self.summary_pos = Pos(1, 0)
+        self.sol_pos = Pos(0, 2)
+        self.delta_pos = Pos(0, 3)
+        self.aligns_pos = Pos(0, 4)
+        self.polar_pos = Pos(0, 5)
+        self.reset_pos = Pos(0, 6)
 
     def set_lines(self, pos: Pos, line1, line2, line3):
         if line1 is not None:
@@ -168,14 +168,14 @@ class HandPad():
             float(self.arr[self.pos].line2)) + increment[i] * sign
         param[self.arr[self.pos].line1] = float(self.arr[self.pos].line2)
         self.display_array()
-        update_summary()
+        self.update_summary()
         time.sleep(0.1)
 
     def flip(self):
         self.arr[self.pos].line2 = 1 - int(float(self.arr[self.pos].line2))
         param[self.arr[self.pos].line1] = str((self.arr[self.pos].line2))
         self.display_array()
-        update_summary()
+        self.update_summary()
         time.sleep(0.1)
 
     def update_summary(self):

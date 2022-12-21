@@ -3,7 +3,6 @@ from typing import Tuple
 from skyfield.api import load
 from skyfield.timelib import Timescale
 from skyfield.vectorlib import VectorSum
-from Nexus import Nexus
 
 
 class Coordinates:
@@ -15,11 +14,12 @@ class Coordinates:
         self.earth = self.planets["earth"]
         self.ts = load.timescale()
 
-    def conv_altaz(self, nexus: Nexus, ra: float, dec: float) -> Tuple[float, float]:
+    def conv_altaz(self, long: float, lat: float, ra: float, dec: float) -> Tuple[float, float]:
         """Convert the ra and dec to altitude and azimuth
 
         Parameters:
-        nexus (Nexus): The Nexus class used for get the geographical coordinates
+        long (float): the longitude
+        lat (float): the latitude
         ra (float): The Right Ascension in hours
         dec (float): The declination
 
@@ -28,19 +28,19 @@ class Coordinates:
         """
         Rad = math.pi / 180
         t = self.ts.now()
-        LST = t.gmst + nexus.get_long() / 15  # as decimal hours
+        LST = t.gmst + long / 15  # as decimal hours
         ra = ra * 15  # need to work in degrees now
         LSTd = LST * 15
         LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360) / 360)) * 360
         x = math.cos(LHA * Rad) * math.cos(dec * Rad)
         y = math.sin(LHA * Rad) * math.cos(dec * Rad)
         z = math.sin(dec * Rad)
-        xhor = x * math.cos((90 - nexus.get_lat()) * Rad) - z * math.sin(
-            (90 - nexus.get_lat()) * Rad
+        xhor = x * math.cos((90 - lat) * Rad) - z * math.sin(
+            (90 - lat) * Rad
         )
         yhor = y
-        zhor = x * math.sin((90 - nexus.get_lat()) * Rad) + z * math.cos(
-            (90 - nexus.get_lat()) * Rad
+        zhor = x * math.sin((90 - lat) * Rad) + z * math.cos(
+            (90 - lat) * Rad
         )
         az = math.atan2(yhor, xhor) * (180 / math.pi) + 180
         alt = math.asin(zhor) * (180 / math.pi)
